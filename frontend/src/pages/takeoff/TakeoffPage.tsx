@@ -63,6 +63,7 @@ export default function TakeoffPage() {
   const colorPickerRef = useRef<HTMLDivElement>(null);
 
   // Close color picker on click-outside
+  // NOTE: use window.document here — "document" is shadowed by the React Query PDF document result
   useEffect(() => {
     if (!colorPickerOpen) return;
     const handler = (e: MouseEvent) => {
@@ -70,8 +71,8 @@ export default function TakeoffPage() {
         setColorPickerOpen(false);
       }
     };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+    window.document.addEventListener('mousedown', handler);
+    return () => window.document.removeEventListener('mousedown', handler);
   }, [colorPickerOpen]);
 
   // Close picker when selection changes
