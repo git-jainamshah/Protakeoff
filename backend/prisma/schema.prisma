@@ -1,0 +1,118 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  password  String
+  role      String   @default("MEMBER") // SUPER_ADMIN | ADMIN | MEMBER
+  avatar    String?
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  projectMemberships ProjectMember[]
+  createdProjects    Project[]
+  shapes             Shape[]
+}
+
+model Company {
+  id          String   @id @default(cuid())
+  name        String
+  logo        String?
+  website     String?
+  plan        String   @default("starter") // starter | pro | enterprise
+  address     String?
+  phone       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users    User[]
+  projects Project[]
+}
+
+model Project {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  status      String   @default("ACTIVE") // ACTIVE | ARCHIVED | COMPLETED
+  address     String?
+  clientName  String?
+  thumbnail   String?
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdById String
+  createdBy   User     @relation(fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  members   ProjectMember[]
+  documents Document[]
+}
+
+model ProjectMember {
+  id        String   @id @default(cuid())
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      String   @default("VIEW") // ADMIN | EDIT | VIEW
+  createdAt DateTime @default(now())
+
+  @@unique([projectId, userId])
+}
+
+model Document {
+  id        String   @id @default(cuid())
+  name      String
+  fileUrl   String
+  fileType  String   @default("pdf")
+  fileSize  Int?
+  pageCount Int      @default(1)
+  thumbnail String?
+  scale     Float    @default(1.0)
+  unit      String   @default("ft")
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  layers Layer[]
+}
+
+model Layer {
+  id         String   @id @default(cuid())
+  name       String
+  color      String   @default("#2563EB")
+  type       String   @default("AREA") // AREA | LINEAR | COUNT
+  visible    Boolean  @default(true)
+  order      Int      @default(0)
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  shapes Shape[]
+}
+
+model Shape {
+  id          String   @id @default(cuid())
+  type        String   // RECT | POLYGON | LINE | CIRCLE
+  data        String   // JSON: shape-specific geometry
+  label       String?
+  color       String?
+  layerId     String
+  layer       Layer    @relation(fields: [layerId], references: [id], onDelete: Cascade)
+  createdById String?
+  createdBy   User?    @relation(fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}

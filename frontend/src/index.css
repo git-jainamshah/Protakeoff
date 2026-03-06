@@ -1,0 +1,102 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --scrollbar-width: 6px;
+    --scrollbar-track: #131C2E;
+    --scrollbar-thumb: #253352;
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+  }
+
+  *::-webkit-scrollbar { width: var(--scrollbar-width); height: var(--scrollbar-width); }
+  *::-webkit-scrollbar-track { background: var(--scrollbar-track); }
+  *::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 3px; }
+
+  html { height: 100%; }
+
+  body {
+    @apply bg-surface text-slate-100 font-sans h-full;
+    font-feature-settings: 'cv11', 'ss01';
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  #root { @apply h-full; }
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-md font-medium transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-surface disabled:opacity-50 disabled:cursor-not-allowed select-none;
+  }
+  .btn-primary {
+    @apply btn bg-brand-600 text-white hover:bg-brand-500 active:bg-brand-700 shadow-sm;
+  }
+  .btn-secondary {
+    @apply btn bg-surface-card text-slate-200 border border-surface-border hover:bg-surface-hover hover:border-slate-500 active:scale-95;
+  }
+  .btn-ghost {
+    @apply btn text-slate-400 hover:text-slate-200 hover:bg-surface-hover active:bg-surface-card;
+  }
+  .btn-danger {
+    @apply btn bg-red-600 text-white hover:bg-red-500 active:bg-red-700;
+  }
+  .btn-sm { @apply px-3 py-1.5 text-xs; }
+  .btn-md { @apply px-4 py-2 text-sm; }
+  .btn-lg { @apply px-6 py-3 text-base; }
+
+  .input {
+    @apply w-full bg-surface-card border border-surface-border text-slate-100 placeholder-slate-500 rounded-md px-3 py-2 text-sm transition-colors focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500/30 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .card {
+    @apply bg-surface-card border border-surface-border rounded-xl;
+  }
+
+  .badge {
+    @apply inline-flex items-center gap-1 rounded-full text-xs font-medium px-2 py-0.5;
+  }
+
+  .sidebar-item {
+    @apply flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-slate-400 hover:text-slate-100 hover:bg-surface-hover cursor-pointer transition-all duration-150 select-none;
+  }
+  .sidebar-item-active {
+    @apply text-brand-400 bg-brand-950/40 hover:bg-brand-950/60;
+  }
+
+  .tool-btn {
+    @apply flex flex-col items-center justify-center w-10 h-10 rounded-lg text-slate-400 hover:text-slate-100 hover:bg-surface-hover transition-all duration-150 cursor-pointer select-none;
+  }
+  .tool-btn-active {
+    @apply text-brand-400 bg-brand-950/60 hover:bg-brand-950/80;
+  }
+}
+
+@layer utilities {
+  .text-gradient {
+    @apply bg-gradient-to-r from-brand-400 to-brand-600 bg-clip-text text-transparent;
+  }
+  .glass {
+    @apply bg-surface-card/80 backdrop-blur-sm border border-surface-border/50;
+  }
+  .glow-sm {
+    box-shadow: 0 0 12px rgba(27, 67, 232, 0.3);
+  }
+}
+
+/* PDF Canvas */
+canvas.pdf-canvas {
+  display: block;
+  image-rendering: -webkit-optimize-contrast;
+}
+
+/* Konva cursor modes */
+.konva-pan-cursor { cursor: grab !important; }
+.konva-pan-cursor:active { cursor: grabbing !important; }
+.konva-crosshair-cursor { cursor: crosshair !important; }
+.konva-select-cursor { cursor: default !important; }

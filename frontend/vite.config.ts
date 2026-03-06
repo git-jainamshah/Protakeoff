@@ -1,24 +1,40 @@
-import path from 'path';
-import { defineConfig, loadEnv } from 'vite';
+import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
-export default defineConfig(({ mode }) => {
-    const env = loadEnv(mode, process.cwd(), '');
-    return {
-      define: {
-        // This is just generic value for the GEMINI API key.
-        // This is not used at all, and can be ignored!
-        'process.env.API_KEY' : JSON.stringify('api-key-this-is-not-used-can-be-ignored!'),
+import path from 'path';
+
+export default defineConfig({
+  plugins: [react()],
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, 'src'),
+    },
+  },
+  optimizeDeps: {
+    include: ['pdfjs-dist'],
+  },
+  server: {
+    port: 5173,
+    proxy: {
+      '/api': {
+        target: 'http://localhost:5000',
+        changeOrigin: true,
       },
-      server: {
-        proxy: {
-          '/api-proxy': 'http://localhost:5000',//Target your Node.js backend
+      '/uploads': {
+        target: 'http://localhost:5000',
+        changeOrigin: true,
+      },
+    },
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+          'konva-vendor': ['konva', 'react-konva'],
+          'pdf-vendor': ['pdfjs-dist'],
+          'query-vendor': ['@tanstack/react-query'],
         },
       },
-      plugins: react(),
-      resolve: {
-        alias: {
-          '@': path.resolve(__dirname, '.'),
-        }
-      }
-    };
+    },
+  },
 });
