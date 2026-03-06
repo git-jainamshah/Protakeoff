@@ -295,7 +295,10 @@ function ShapeItem({
 
   const click = (e: KonvaEventObject<MouseEvent>) => {
     e.cancelBubble = true;
-    activeTool === 'eraser' ? onDelete(shape.id) : onSelect(shape.id);
+    if (activeTool === 'eraser') { onDelete(shape.id); return; }
+    // If already selected → open rename immediately (single-click to edit label)
+    if (isSelected && activeTool === 'select') { onRename(shape.id); return; }
+    onSelect(shape.id);
   };
   const dblClick = (e: KonvaEventObject<MouseEvent>) => {
     e.cancelBubble = true;
@@ -339,6 +342,9 @@ function ShapeItem({
     );
   }
 
+  // Shared text shadow — white glow so bold label floats clearly over any PDF
+  const labelShadow = { shadowColor: 'rgba(255,255,255,0.95)', shadowBlur: 10, shadowOffset: { x: 0, y: 0 }, shadowOpacity: 1 };
+
   if (shape.type === 'RECT') {
     const d = shape.data as RectData;
     const labelText = shape.label || formatArea(Math.abs(d.width)*Math.abs(d.height), unit, scale);
@@ -347,10 +353,9 @@ function ShapeItem({
         <Rect x={d.x} y={d.y} width={d.width} height={d.height}
           fill={fill} stroke={stroke} strokeWidth={sw} dash={dash}
           cornerRadius={d.cornerRadius || 0} hitStrokeWidth={10} />
-        <Rect x={d.x + d.width/2 - 52} y={d.y + d.height/2 - 11} width={104} height={22}
-          fill="white" opacity={0.85} cornerRadius={4} listening={false} />
-        <Text x={d.x + d.width/2 - 52} y={d.y + d.height/2 - 9}
-          text={labelText} fontSize={14} fill={stroke} fontStyle="bold" align="center" width={104} listening={false} />
+        <Text x={d.x + d.width/2 - 70} y={d.y + d.height/2 - 12}
+          text={labelText} fontSize={20} fill={stroke} fontStyle="bold" align="center" width={140}
+          listening={false} {...labelShadow} />
       </Group>
     );
   }
@@ -362,8 +367,8 @@ function ShapeItem({
     return (
       <Group onClick={click} onTap={click} onDblClick={dblClick} draggable={isDraggable} onDragEnd={groupDragEnd}>
         <Line points={d.points} closed fill={fill} stroke={stroke} strokeWidth={sw} dash={dash} hitStrokeWidth={10} />
-        <Rect x={c.x-52} y={c.y-11} width={104} height={22} fill="white" opacity={0.85} cornerRadius={4} listening={false} />
-        <Text x={c.x-52} y={c.y-9} text={labelText} fontSize={14} fill={stroke} fontStyle="bold" align="center" width={104} listening={false} />
+        <Text x={c.x-70} y={c.y-12} text={labelText} fontSize={20} fill={stroke} fontStyle="bold"
+          align="center" width={140} listening={false} {...labelShadow} />
       </Group>
     );
   }
@@ -383,8 +388,8 @@ function ShapeItem({
         <Line points={d.points} stroke={stroke} strokeWidth={sw} dash={[8,4]} hitStrokeWidth={12} />
         <Circle x={d.points[0]} y={d.points[1]} radius={4} fill={stroke} listening={false} />
         <Circle x={d.points[2]} y={d.points[3]} radius={4} fill={stroke} listening={false} />
-        <Rect x={mx-36} y={my-12} width={72} height={20} fill="white" stroke={stroke} strokeWidth={0.8} cornerRadius={4} opacity={0.92} listening={false} />
-        <Text x={mx-36} y={my-10} text={shape.label||len} fontSize={13} fill={stroke} fontStyle="bold" align="center" width={72} listening={false} />
+        <Text x={mx-60} y={my-10} text={shape.label||len} fontSize={18} fill={stroke}
+          fontStyle="bold" align="center" width={120} listening={false} {...labelShadow} />
       </Group>
     );
   }
@@ -394,8 +399,8 @@ function ShapeItem({
     return (
       <Group onClick={click} onTap={click} onDblClick={dblClick} draggable={isDraggable} onDragEnd={groupDragEnd}>
         <Circle x={d.x} y={d.y} radius={d.radius} fill={fill} stroke={stroke} strokeWidth={sw} dash={dash} hitStrokeWidth={10} />
-        <Rect x={d.x-52} y={d.y-11} width={104} height={22} fill="white" opacity={0.85} cornerRadius={4} listening={false} />
-        <Text x={d.x-52} y={d.y-9} text={labelText} fontSize={14} fill={stroke} fontStyle="bold" align="center" width={104} listening={false} />
+        <Text x={d.x-70} y={d.y-12} text={labelText} fontSize={20} fill={stroke}
+          fontStyle="bold" align="center" width={140} listening={false} {...labelShadow} />
       </Group>
     );
   }
