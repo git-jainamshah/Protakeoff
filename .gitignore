@@ -11,6 +11,7 @@ build/
 .env
 .env.local
 .env.*.local
+.env.railway
 !.env.example
 
 # Local dev credentials (DO NOT COMMIT)
@@ -48,6 +49,9 @@ Thumbs.db
 
 # Testing
 coverage/
+
+# Vercel (auto-generated, contains project IDs)
+.vercel/
 
 # Misc
 .eslintcache
