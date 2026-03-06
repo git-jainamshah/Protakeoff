@@ -63,10 +63,14 @@ export const projectsApi = {
 export const documentsApi = {
   list: (projectId: string) => api.get(`/documents/project/${projectId}`).then((r) => r.data),
   get: (id: string) => api.get(`/documents/${id}`).then((r) => r.data),
+  // Legacy server-side upload (used in local dev; file goes through the API server)
   upload: (projectId: string, formData: FormData) =>
     api.post(`/documents/project/${projectId}`, formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     }).then((r) => r.data),
+  // Register a document after client-side Blob upload
+  register: (data: { name: string; fileUrl: string; fileType: string; fileSize: number; projectId: string }) =>
+    api.post('/documents/register', data).then((r) => r.data),
   update: (id: string, data: Partial<{ name: string; scale: number; unit: string }>) =>
     api.put(`/documents/${id}`, data).then((r) => r.data),
   delete: (id: string) => api.delete(`/documents/${id}`).then((r) => r.data),

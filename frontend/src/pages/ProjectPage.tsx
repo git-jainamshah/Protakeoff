@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { upload as blobUpload } from '@vercel/blob/client';
 import {
   ArrowLeft, Upload, FileText, Plus, Trash2, Users, Settings,
   ChevronRight, Clock, Layers, Eye, Edit3, Shield, ExternalLink
@@ -43,10 +44,30 @@ export default function ProjectPage() {
 
   const uploadMutation = useMutation({
     mutationFn: async (file: File) => {
-      const fd = new FormData();
-      fd.append('file', file);
-      fd.append('name', file.name.replace(/\.[^/.]+$/, ''));
-      return documentsApi.upload(id!, fd);
+      const token = localStorage.getItem('pt_token');
+      const isVercel = window.location.hostname !== 'localhost';
+
+      if (isVercel) {
+        // On Vercel: upload directly to Vercel Blob (bypasses 4.5MB function limit)
+        const blob = await blobUpload(file.name, file, {
+          access: 'public',
+          handleUploadUrl: '/api/documents/blob-token',
+          clientPayload: JSON.stringify({ token }),
+        });
+        return documentsApi.register({
+          name: file.name.replace(/\.[^/.]+$/, ''),
+          fileUrl: blob.url,
+          fileType: file.type,
+          fileSize: file.size,
+          projectId: id!,
+        });
+      } else {
+        // Local dev: upload through the API (simpler, no size constraint issues locally)
+        const fd = new FormData();
+        fd.append('file', file);
+        fd.append('name', file.name.replace(/\.[^/.]+$/, ''));
+        return documentsApi.upload(id!, fd);
+      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['project', id] });

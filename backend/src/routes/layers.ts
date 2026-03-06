@@ -7,8 +7,9 @@ router.use(requireAuth);
 
 router.get('/document/:documentId', async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    const documentId = req.params.documentId as string;
     const layers = await prisma.layer.findMany({
-      where: { documentId: req.params.documentId },
+      where: { documentId },
       include: { shapes: { orderBy: { createdAt: 'asc' } } },
       orderBy: { order: 'asc' },
     });
@@ -21,17 +22,18 @@ router.get('/document/:documentId', async (req: AuthRequest, res: Response): Pro
 
 router.post('/document/:documentId', async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    const documentId = req.params.documentId as string;
     const { name, color, type } = req.body;
     if (!name) { res.status(400).json({ error: 'Layer name is required' }); return; }
 
-    const count = await prisma.layer.count({ where: { documentId: req.params.documentId } });
+    const count = await prisma.layer.count({ where: { documentId } });
     const layer = await prisma.layer.create({
       data: {
         name,
         color: color || '#6366F1',
         type: type || 'AREA',
         order: count,
-        documentId: req.params.documentId,
+        documentId,
       },
       include: { shapes: true },
     });
@@ -46,7 +48,7 @@ router.put('/:id', async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { name, color, type, visible, order } = req.body;
     const layer = await prisma.layer.update({
-      where: { id: req.params.id },
+      where: { id: req.params.id as string },
       data: { name, color, type, visible, order },
       include: { shapes: true },
     });
@@ -59,7 +61,7 @@ router.put('/:id', async (req: AuthRequest, res: Response): Promise<void> => {
 
 router.delete('/:id', async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    await prisma.layer.delete({ where: { id: req.params.id } });
+    await prisma.layer.delete({ where: { id: req.params.id as string } });
     res.json({ message: 'Layer deleted' });
   } catch (err) {
     console.error(err);

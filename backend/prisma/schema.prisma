@@ -3,8 +3,9 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model User {
@@ -105,7 +106,7 @@ model Layer {
 
 model Shape {
   id          String   @id @default(cuid())
-  type        String   // RECT | POLYGON | LINE | CIRCLE
+  type        String   // RECT | POLYGON | LINE | CIRCLE | TEXT
   data        String   // JSON: shape-specific geometry
   label       String?
   color       String?

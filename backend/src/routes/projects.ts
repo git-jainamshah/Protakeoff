@@ -93,8 +93,9 @@ router.post('/', async (req: AuthRequest, res: Response): Promise<void> => {
 
 router.get('/:id', async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    const id = req.params.id as string;
     const project = await prisma.project.findUnique({
-      where: { id: req.params.id },
+      where: { id },
       include: {
         company: { select: { id: true, name: true, logo: true } },
         createdBy: { select: { id: true, name: true, email: true, avatar: true } },
@@ -111,7 +112,7 @@ router.get('/:id', async (req: AuthRequest, res: Response): Promise<void> => {
       return;
     }
 
-    const membership = project.members.find((m) => m.userId === req.user!.userId);
+    const membership = project.members.find((m: { userId: string }) => m.userId === req.user!.userId);
     const isOwner = project.createdById === req.user!.userId;
     if (!membership && !isOwner && req.user!.role !== 'SUPER_ADMIN') {
       res.status(403).json({ error: 'Access denied' });
@@ -127,10 +128,11 @@ router.get('/:id', async (req: AuthRequest, res: Response): Promise<void> => {
 
 router.put('/:id', async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    const id = req.params.id as string;
     const { name, description, address, clientName, status } = req.body;
 
     const membership = await prisma.projectMember.findUnique({
-      where: { projectId_userId: { projectId: req.params.id, userId: req.user!.userId } },
+      where: { projectId_userId: { projectId: id, userId: req.user!.userId } },
     });
     if (!membership || membership.role === 'VIEW') {
       res.status(403).json({ error: 'Insufficient permissions' });
@@ -138,7 +140,7 @@ router.put('/:id', async (req: AuthRequest, res: Response): Promise<void> => {
     }
 
     const project = await prisma.project.update({
-      where: { id: req.params.id },
+      where: { id },
       data: { name, description, address, clientName, status },
       include: { company: { select: { id: true, name: true } } },
     });
@@ -151,13 +153,14 @@ router.put('/:id', async (req: AuthRequest, res: Response): Promise<void> => {
 
 router.delete('/:id', async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const project = await prisma.project.findUnique({ where: { id: req.params.id } });
+    const id = req.params.id as string;
+    const project = await prisma.project.findUnique({ where: { id } });
     if (!project) { res.status(404).json({ error: 'Project not found' }); return; }
     if (project.createdById !== req.user!.userId && req.user!.role !== 'SUPER_ADMIN') {
       res.status(403).json({ error: 'Only the project owner can delete it' });
       return;
     }
-    await prisma.project.delete({ where: { id: req.params.id } });
+    await prisma.project.delete({ where: { id } });
     res.json({ message: 'Project deleted' });
   } catch (err) {
     console.error(err);
@@ -167,9 +170,10 @@ router.delete('/:id', async (req: AuthRequest, res: Response): Promise<void> => 
 
 router.post('/:id/members', async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    const id = req.params.id as string;
     const { email, role } = req.body;
     const membership = await prisma.projectMember.findUnique({
-      where: { projectId_userId: { projectId: req.params.id, userId: req.user!.userId } },
+      where: { projectId_userId: { projectId: id, userId: req.user!.userId } },
     });
     if (!membership || membership.role !== 'ADMIN') {
       res.status(403).json({ error: 'Only admins can add members' });
@@ -179,12 +183,12 @@ router.post('/:id/members', async (req: AuthRequest, res: Response): Promise<voi
     if (!invitee) { res.status(404).json({ error: 'User not found with that email' }); return; }
 
     const existing = await prisma.projectMember.findUnique({
-      where: { projectId_userId: { projectId: req.params.id, userId: invitee.id } },
+      where: { projectId_userId: { projectId: id, userId: invitee.id } },
     });
     if (existing) { res.status(409).json({ error: 'User is already a member' }); return; }
 
     const newMember = await prisma.projectMember.create({
-      data: { projectId: req.params.id, userId: invitee.id, role: role || 'VIEW' },
+      data: { projectId: id, userId: invitee.id, role: role || 'VIEW' },
       include: { user: { select: { id: true, name: true, email: true, avatar: true } } },
     });
     res.status(201).json(newMember);
@@ -196,16 +200,18 @@ router.post('/:id/members', async (req: AuthRequest, res: Response): Promise<voi
 
 router.put('/:id/members/:userId', async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    const id = req.params.id as string;
+    const userId = req.params.userId as string;
     const { role } = req.body;
     const membership = await prisma.projectMember.findUnique({
-      where: { projectId_userId: { projectId: req.params.id, userId: req.user!.userId } },
+      where: { projectId_userId: { projectId: id, userId: req.user!.userId } },
     });
     if (!membership || membership.role !== 'ADMIN') {
       res.status(403).json({ error: 'Only admins can change member roles' });
       return;
     }
     const updated = await prisma.projectMember.update({
-      where: { projectId_userId: { projectId: req.params.id, userId: req.params.userId } },
+      where: { projectId_userId: { projectId: id, userId } },
       data: { role },
       include: { user: { select: { id: true, name: true, email: true } } },
     });
@@ -218,15 +224,17 @@ router.put('/:id/members/:userId', async (req: AuthRequest, res: Response): Prom
 
 router.delete('/:id/members/:userId', async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    const id = req.params.id as string;
+    const userId = req.params.userId as string;
     const membership = await prisma.projectMember.findUnique({
-      where: { projectId_userId: { projectId: req.params.id, userId: req.user!.userId } },
+      where: { projectId_userId: { projectId: id, userId: req.user!.userId } },
     });
     if (!membership || membership.role !== 'ADMIN') {
       res.status(403).json({ error: 'Only admins can remove members' });
       return;
     }
     await prisma.projectMember.delete({
-      where: { projectId_userId: { projectId: req.params.id, userId: req.params.userId } },
+      where: { projectId_userId: { projectId: id, userId } },
     });
     res.json({ message: 'Member removed' });
   } catch (err) {

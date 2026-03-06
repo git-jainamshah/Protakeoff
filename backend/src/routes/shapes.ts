@@ -7,8 +7,9 @@ router.use(requireAuth);
 
 router.get('/layer/:layerId', async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    const layerId = req.params.layerId as string;
     const shapes = await prisma.shape.findMany({
-      where: { layerId: req.params.layerId },
+      where: { layerId },
       orderBy: { createdAt: 'asc' },
     });
     res.json(shapes);
@@ -20,6 +21,7 @@ router.get('/layer/:layerId', async (req: AuthRequest, res: Response): Promise<v
 
 router.post('/layer/:layerId', async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    const layerId = req.params.layerId as string;
     const { type, data, label, color } = req.body;
     if (!type || !data) { res.status(400).json({ error: 'Type and data are required' }); return; }
 
@@ -29,7 +31,7 @@ router.post('/layer/:layerId', async (req: AuthRequest, res: Response): Promise<
         data: typeof data === 'string' ? data : JSON.stringify(data),
         label,
         color,
-        layerId: req.params.layerId,
+        layerId,
         createdById: req.user!.userId,
       },
     });
@@ -42,10 +44,11 @@ router.post('/layer/:layerId', async (req: AuthRequest, res: Response): Promise<
 
 router.post('/layer/:layerId/batch', async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    const layerId = req.params.layerId as string;
     const { shapes } = req.body;
     if (!Array.isArray(shapes)) { res.status(400).json({ error: 'shapes array is required' }); return; }
 
-    await prisma.shape.deleteMany({ where: { layerId: req.params.layerId } });
+    await prisma.shape.deleteMany({ where: { layerId } });
 
     if (shapes.length > 0) {
       await prisma.shape.createMany({
@@ -54,14 +57,14 @@ router.post('/layer/:layerId/batch', async (req: AuthRequest, res: Response): Pr
           data: typeof s.data === 'string' ? s.data : JSON.stringify(s.data),
           label: s.label,
           color: s.color,
-          layerId: req.params.layerId,
+          layerId,
           createdById: req.user!.userId,
         })),
       });
     }
 
     const updated = await prisma.shape.findMany({
-      where: { layerId: req.params.layerId },
+      where: { layerId },
       orderBy: { createdAt: 'asc' },
     });
     res.json(updated);
@@ -75,7 +78,7 @@ router.put('/:id', async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { type, data, label, color } = req.body;
     const shape = await prisma.shape.update({
-      where: { id: req.params.id },
+      where: { id: req.params.id as string },
       data: {
         type,
         data: data ? (typeof data === 'string' ? data : JSON.stringify(data)) : undefined,
@@ -92,7 +95,7 @@ router.put('/:id', async (req: AuthRequest, res: Response): Promise<void> => {
 
 router.delete('/:id', async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    await prisma.shape.delete({ where: { id: req.params.id } });
+    await prisma.shape.delete({ where: { id: req.params.id as string } });
     res.json({ message: 'Shape deleted' });
   } catch (err) {
     console.error(err);

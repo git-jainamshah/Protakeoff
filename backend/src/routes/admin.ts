@@ -84,7 +84,7 @@ router.get('/git/log', (_req: AuthRequest, res: Response): void => {
 
 router.post('/git/restore/:hash', (req: AuthRequest, res: Response): void => {
   try {
-    const { hash } = req.params;
+    const hash = req.params.hash as string;
 
     if (!/^[a-f0-9]{6,40}$/i.test(hash)) {
       res.status(400).json({ error: 'Invalid commit hash' });

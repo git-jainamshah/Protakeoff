@@ -34,7 +34,7 @@ router.put('/:id/role', requireRole(['SUPER_ADMIN', 'ADMIN']), async (req: AuthR
     if (!allowed.includes(role)) { res.status(400).json({ error: 'Invalid role' }); return; }
 
     const user = await prisma.user.update({
-      where: { id: req.params.id },
+      where: { id: req.params.id as string },
       data: { role },
       select: { id: true, name: true, email: true, role: true },
     });
