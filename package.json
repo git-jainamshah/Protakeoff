@@ -12,7 +12,9 @@
     "prisma:migrate": "npm run prisma:migrate --prefix backend",
     "prisma:generate": "npm run prisma:generate --prefix backend",
     "prisma:studio": "npm run prisma:studio --prefix backend",
-    "seed": "cd backend && DATABASE_URL='file:./prisma/dev.db' npx tsx prisma/seed.ts"
+    "seed": "cd backend && DATABASE_URL='file:./prisma/dev.db' npx tsx prisma/seed.ts",
+    "render:build": "npm install --prefix frontend && npm run build --prefix frontend && npm install --prefix backend && npm run prisma:generate --prefix backend",
+    "render:start": "cd backend && npx prisma migrate deploy && node --import tsx/esm src/server.ts"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"

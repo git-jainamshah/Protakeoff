@@ -54,6 +54,16 @@ app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', version: '1.0.0', service: 'ProTakeOff API' });
 });
 
+// In production, serve the compiled React frontend from the same Express server.
+// This means a single Render/Fly service handles both the API and the UI.
+if (process.env.NODE_ENV === 'production') {
+  const frontendDist = path.join(process.cwd(), '../frontend/dist');
+  app.use(express.static(frontendDist));
+  app.get('*', (_req, res) => {
+    res.sendFile(path.join(frontendDist, 'index.html'));
+  });
+}
+
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error(err.stack);
   res.status(500).json({ error: err.message || 'Internal server error' });
