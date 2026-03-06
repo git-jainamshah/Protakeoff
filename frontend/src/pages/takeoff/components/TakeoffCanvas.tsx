@@ -342,20 +342,45 @@ function ShapeItem({
     );
   }
 
-  // Shared text shadow — white glow so bold label floats clearly over any PDF
-  const labelShadow = { shadowColor: 'rgba(255,255,255,0.95)', shadowBlur: 10, shadowOffset: { x: 0, y: 0 }, shadowOpacity: 1 };
+  // Shared text shadow — white glow makes bold labels readable over any PDF
+  const glow = { shadowColor: 'rgba(255,255,255,0.98)', shadowBlur: 12, shadowOffset: { x: 0, y: 0 }, shadowOpacity: 1 };
+
+  // Auto-scale font size to shape dimensions, capped 10–22px
+  const autoFs = (w: number, h: number) => Math.max(10, Math.min(22, Math.min(Math.abs(w) / 5, Math.abs(h) / 2.5)));
+  // Width for the label text band, proportional to shape but capped
+  const autoTw = (w: number) => Math.max(80, Math.min(240, Math.abs(w) * 0.85));
+
+  // Renders metric (top) and optional name label (bottom), centered on cx/cy
+  const TwoLineLabel = ({ cx, cy, metric, name, fs, tw }: { cx: number; cy: number; metric: string; name?: string; fs: number; tw: number }) => {
+    const lineH = fs * 1.5;
+    const totalH = name ? lineH * 2 : lineH;
+    const startY = cy - totalH / 2;
+    return (
+      <>
+        <Text x={cx - tw/2} y={startY} text={metric}
+          fontSize={fs} fill={stroke} fontStyle="bold" align="center" width={tw}
+          listening={false} {...glow} />
+        {name && (
+          <Text x={cx - tw/2} y={startY + lineH} text={name}
+            fontSize={Math.max(9, fs - 2)} fill={stroke} fontStyle="bold" align="center" width={tw}
+            listening={false} {...glow} />
+        )}
+      </>
+    );
+  };
 
   if (shape.type === 'RECT') {
     const d = shape.data as RectData;
-    const labelText = shape.label || formatArea(Math.abs(d.width)*Math.abs(d.height), unit, scale);
+    const w = Math.abs(d.width), h = Math.abs(d.height);
+    const fs = autoFs(w, h);
+    const tw = autoTw(w);
+    const metric = formatArea(w * h, unit, scale);
     return (
       <Group onClick={click} onTap={click} onDblClick={dblClick} draggable={isDraggable} onDragEnd={groupDragEnd}>
         <Rect x={d.x} y={d.y} width={d.width} height={d.height}
           fill={fill} stroke={stroke} strokeWidth={sw} dash={dash}
           cornerRadius={d.cornerRadius || 0} hitStrokeWidth={10} />
-        <Text x={d.x + d.width/2 - 70} y={d.y + d.height/2 - 12}
-          text={labelText} fontSize={20} fill={stroke} fontStyle="bold" align="center" width={140}
-          listening={false} {...labelShadow} />
+        <TwoLineLabel cx={d.x + d.width/2} cy={d.y + d.height/2} metric={metric} name={shape.label} fs={fs} tw={tw} />
       </Group>
     );
   }
@@ -363,12 +388,15 @@ function ShapeItem({
     const d = shape.data as PolygonData;
     if (d.points.length < 6) return null;
     const c = calcPolygonCentroid(d.points);
-    const labelText = shape.label || formatArea(calcPolygonArea(d.points), unit, scale);
+    const xs = d.points.filter((_,i) => i%2===0), ys = d.points.filter((_,i) => i%2===1);
+    const polyW = Math.max(...xs)-Math.min(...xs), polyH = Math.max(...ys)-Math.min(...ys);
+    const fs = autoFs(polyW, polyH);
+    const tw = autoTw(polyW);
+    const metric = formatArea(calcPolygonArea(d.points), unit, scale);
     return (
       <Group onClick={click} onTap={click} onDblClick={dblClick} draggable={isDraggable} onDragEnd={groupDragEnd}>
         <Line points={d.points} closed fill={fill} stroke={stroke} strokeWidth={sw} dash={dash} hitStrokeWidth={10} />
-        <Text x={c.x-70} y={c.y-12} text={labelText} fontSize={20} fill={stroke} fontStyle="bold"
-          align="center" width={140} listening={false} {...labelShadow} />
+        <TwoLineLabel cx={c.x} cy={c.y} metric={metric} name={shape.label} fs={fs} tw={tw} />
       </Group>
     );
   }
@@ -383,24 +411,31 @@ function ShapeItem({
     }
     const len = formatLength(calcLineLength(d.points), unit, scale);
     const mx=(d.points[0]+d.points[2])/2, my=(d.points[1]+d.points[3])/2;
+    const lineH = 16 * 1.5;
+    const startY = shape.label ? my - lineH : my - 10;
     return (
       <Group onClick={click} onTap={click} onDblClick={dblClick} draggable={isDraggable} onDragEnd={groupDragEnd}>
         <Line points={d.points} stroke={stroke} strokeWidth={sw} dash={[8,4]} hitStrokeWidth={12} />
         <Circle x={d.points[0]} y={d.points[1]} radius={4} fill={stroke} listening={false} />
         <Circle x={d.points[2]} y={d.points[3]} radius={4} fill={stroke} listening={false} />
-        <Text x={mx-60} y={my-10} text={shape.label||len} fontSize={18} fill={stroke}
-          fontStyle="bold" align="center" width={120} listening={false} {...labelShadow} />
+        <Text x={mx-70} y={startY} text={len} fontSize={16} fill={stroke}
+          fontStyle="bold" align="center" width={140} listening={false} {...glow} />
+        {shape.label && (
+          <Text x={mx-70} y={startY + lineH} text={shape.label} fontSize={14} fill={stroke}
+            fontStyle="bold" align="center" width={140} listening={false} {...glow} />
+        )}
       </Group>
     );
   }
   if (shape.type === 'CIRCLE') {
     const d = shape.data as CircleData;
-    const labelText = shape.label || formatArea(Math.PI*d.radius*d.radius, unit, scale);
+    const fs = autoFs(d.radius * 2, d.radius * 2);
+    const tw = autoTw(d.radius * 2);
+    const metric = formatArea(Math.PI * d.radius * d.radius, unit, scale);
     return (
       <Group onClick={click} onTap={click} onDblClick={dblClick} draggable={isDraggable} onDragEnd={groupDragEnd}>
         <Circle x={d.x} y={d.y} radius={d.radius} fill={fill} stroke={stroke} strokeWidth={sw} dash={dash} hitStrokeWidth={10} />
-        <Text x={d.x-70} y={d.y-12} text={labelText} fontSize={20} fill={stroke}
-          fontStyle="bold" align="center" width={140} listening={false} {...labelShadow} />
+        <TwoLineLabel cx={d.x} cy={d.y} metric={metric} name={shape.label} fs={fs} tw={tw} />
       </Group>
     );
   }
@@ -503,6 +538,8 @@ interface Props {
 }
 
 // ─── Rename Shape Modal ───────────────────────────────────────────────────────
+const LABEL_MAX = 30;
+
 function RenameShapeModal({ shape, onCommit, onCancel }: {
   shape: CanvasShape;
   onCommit: (label: string) => void;
@@ -510,20 +547,28 @@ function RenameShapeModal({ shape, onCommit, onCancel }: {
 }) {
   const defaultLabel = shape.label || '';
   const [value, setValue] = useState(defaultLabel);
+  const remaining = LABEL_MAX - value.length;
   return (
     <Modal open onClose={onCancel} title="Label Element" size="sm">
       <div className="space-y-4">
-        <input
-          autoFocus
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') onCommit(value);
-            if (e.key === 'Escape') onCancel();
-          }}
-          placeholder={`e.g. ${shape.type === 'RECT' ? 'Living Room' : shape.type === 'LINE' ? 'North Wall' : 'Area 1'}`}
-          className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-400 placeholder:text-slate-400"
-        />
+        <div className="relative">
+          <input
+            autoFocus
+            value={value}
+            maxLength={LABEL_MAX}
+            onChange={(e) => setValue(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') onCommit(value);
+              if (e.key === 'Escape') onCancel();
+            }}
+            placeholder={`e.g. ${shape.type === 'RECT' ? 'Living Room' : shape.type === 'LINE' ? 'North Wall' : 'Area 1'}`}
+            className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-400 placeholder:text-slate-400 pr-12"
+          />
+          <span className={cn('absolute right-3 top-1/2 -translate-y-1/2 text-[11px] tabular-nums',
+            remaining <= 5 ? 'text-red-400 font-semibold' : 'text-slate-400')}>
+            {remaining}
+          </span>
+        </div>
         <p className="text-[11px] text-slate-400">Leave blank to show the measurement value instead.</p>
         <div className="flex gap-3">
           <Button variant="secondary" className="flex-1" onClick={onCancel}>Cancel</Button>
@@ -576,6 +621,13 @@ export default function TakeoffCanvas({
     window.addEventListener('keydown', dn); window.addEventListener('keyup', up);
     return () => { window.removeEventListener('keydown', dn); window.removeEventListener('keyup', up); };
   }, []);
+
+  // ── External rename trigger from toolbar Pencil button ──────────────────────
+  useEffect(() => {
+    const handler = () => { if (selectedShapeId) setRenamingShapeId(selectedShapeId); };
+    window.addEventListener('pt:rename-selected', handler as EventListener);
+    return () => window.removeEventListener('pt:rename-selected', handler as EventListener);
+  }, [selectedShapeId]);
   const isPanning = activeTool === 'pan' || spaceDown;
 
   // ── Drawing state ──────────────────────────────────────────────────────────
@@ -788,7 +840,7 @@ export default function TakeoffCanvas({
       )}
 
       {/* ── Tool hints ── */}
-      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
+      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 pointer-events-none">
         {activeTool==='polygon'&&polygonPts.length>0&&(
           <div className="bg-amber-50 border border-amber-300 text-amber-700 text-xs font-medium px-4 py-1.5 rounded-full shadow-sm">
             {polygonPts.length/2} pts · double-click to close · Esc to cancel

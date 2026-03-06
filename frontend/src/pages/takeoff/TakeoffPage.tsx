@@ -59,6 +59,23 @@ export default function TakeoffPage() {
   const [isSaving,  setIsSaving] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [colorPickerOpen, setColorPickerOpen] = useState(false);
+  const colorPickerRef = useRef<HTMLDivElement>(null);
+
+  // Close color picker on click-outside
+  useEffect(() => {
+    if (!colorPickerOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (colorPickerRef.current && !colorPickerRef.current.contains(e.target as Node)) {
+        setColorPickerOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [colorPickerOpen]);
+
+  // Close picker when selection changes
+  useEffect(() => { setColorPickerOpen(false); }, [selectedShapeId]);
 
   const { data: document, isLoading } = useQuery<Document>({
     queryKey: ['document', documentId],
@@ -253,64 +270,68 @@ export default function TakeoffPage() {
             </div>
 
             {/* ── Undo / Redo / Delete / Shape controls overlay ── */}
-            <div className="absolute top-3 left-3 z-20 flex flex-col gap-1.5">
-              {/* Base row: undo / redo / delete */}
-              <div className="flex items-center gap-1 bg-white/90 backdrop-blur-sm border border-slate-200 rounded-xl px-2 py-1.5 shadow-sm">
-                <button onClick={undo} disabled={!canUndo}
-                  title="Undo (⌘Z)" className={cn('p-1.5 rounded-lg transition-colors', canUndo ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-100' : 'text-slate-300 cursor-not-allowed')}>
-                  <Undo2 className="w-4 h-4" />
-                </button>
-                <button onClick={redo} disabled={!canRedo}
-                  title="Redo (⌘⇧Z)" className={cn('p-1.5 rounded-lg transition-colors', canRedo ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-100' : 'text-slate-300 cursor-not-allowed')}>
-                  <Redo2 className="w-4 h-4" />
-                </button>
-                <div className="w-px h-5 bg-slate-200 mx-0.5" />
-                <button onClick={deleteSelected} disabled={!selectedShapeId}
-                  title="Delete selected (Del)" className={cn('p-1.5 rounded-lg transition-colors', selectedShapeId ? 'text-red-500 hover:text-red-600 hover:bg-red-50' : 'text-slate-300 cursor-not-allowed')}>
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </div>
+            <div className="absolute top-3 left-3 z-40 flex items-center gap-1 bg-white/90 backdrop-blur-sm border border-slate-200 rounded-xl px-2 py-1.5 shadow-sm">
+              <button onClick={undo} disabled={!canUndo}
+                title="Undo (⌘Z)" className={cn('p-1.5 rounded-lg transition-colors', canUndo ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-100' : 'text-slate-300 cursor-not-allowed')}>
+                <Undo2 className="w-4 h-4" />
+              </button>
+              <button onClick={redo} disabled={!canRedo}
+                title="Redo (⌘⇧Z)" className={cn('p-1.5 rounded-lg transition-colors', canRedo ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-100' : 'text-slate-300 cursor-not-allowed')}>
+                <Redo2 className="w-4 h-4" />
+              </button>
+              <div className="w-px h-5 bg-slate-200 mx-0.5" />
+              <button onClick={deleteSelected} disabled={!selectedShapeId}
+                title="Delete selected (Del)" className={cn('p-1.5 rounded-lg transition-colors', selectedShapeId ? 'text-red-500 hover:text-red-600 hover:bg-red-50' : 'text-slate-300 cursor-not-allowed')}>
+                <Trash2 className="w-4 h-4" />
+              </button>
 
-              {/* Shape controls row — only when a shape is selected */}
+              {/* Per-shape controls — only when something is selected */}
               {selectedShapeId && (() => {
+                const PRESETS = ['#EF4444','#F97316','#EAB308','#22C55E','#14B8A6','#3B82F6','#6366F1','#8B5CF6','#EC4899','#64748B'];
                 const sel = visibleShapes.find(s => s.id === selectedShapeId);
-                const PRESETS = [
-                  '#EF4444','#F97316','#EAB308','#22C55E','#14B8A6',
-                  '#3B82F6','#6366F1','#8B5CF6','#EC4899','#64748B',
-                ];
+                const currentColor = sel?.color || '#3B82F6';
                 return (
-                  <div className="flex items-center gap-1.5 bg-white/90 backdrop-blur-sm border border-slate-200 rounded-xl px-2.5 py-2 shadow-sm">
-                    {/* Rename label button */}
+                  <>
+                    <div className="w-px h-5 bg-slate-200 mx-0.5" />
+                    {/* Rename shortcut */}
                     <button
                       onClick={() => {
-                        const found = visibleShapes.find(s => s.id === selectedShapeId);
-                        if (found) {
-                          const newLabel = prompt('Label this element:', found.label || '');
-                          if (newLabel !== null) renameShape(selectedShapeId, newLabel);
-                        }
+                        // Trigger the canvas rename modal by setting a custom event
+                        // (simpler: dispatch a keyboard shortcut or just use the canvas click-when-selected behaviour)
+                        window.dispatchEvent(new CustomEvent('pt:rename-selected'));
                       }}
-                      title="Edit label (or click shape)"
+                      title="Rename label (or click the selected shape)"
                       className="p-1.5 rounded-lg text-slate-500 hover:text-brand-600 hover:bg-brand-50 transition-colors"
                     >
                       <Pencil className="w-3.5 h-3.5" />
                     </button>
-                    <div className="w-px h-4 bg-slate-200" />
-                    {/* Color presets */}
-                    <div className="flex items-center gap-1">
-                      {PRESETS.map((c) => (
-                        <button
-                          key={c}
-                          onClick={() => colorShape(selectedShapeId, c)}
-                          title={c}
-                          className={cn(
-                            'w-5 h-5 rounded-full border-2 transition-transform hover:scale-125 flex-shrink-0',
-                            sel?.color === c ? 'border-slate-700 scale-125' : 'border-white shadow-sm',
-                          )}
-                          style={{ backgroundColor: c }}
-                        />
-                      ))}
+                    {/* Color dot → popup */}
+                    <div className="relative" ref={colorPickerRef}>
+                      <button
+                        onClick={() => setColorPickerOpen(o => !o)}
+                        title="Change element color"
+                        className={cn('p-1 rounded-lg transition-colors hover:bg-slate-100', colorPickerOpen && 'bg-slate-100')}
+                      >
+                        <div className="w-5 h-5 rounded-full border-2 border-white shadow" style={{ backgroundColor: currentColor }} />
+                      </button>
+                      {colorPickerOpen && (
+                        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 z-50 bg-white border border-slate-200 rounded-2xl p-3 shadow-xl">
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 text-center">Color</p>
+                          <div className="grid grid-cols-5 gap-2">
+                            {PRESETS.map(c => (
+                              <button key={c}
+                                onClick={() => { colorShape(selectedShapeId, c); setColorPickerOpen(false); }}
+                                title={c}
+                                className={cn('w-7 h-7 rounded-full border-2 transition-all hover:scale-110',
+                                  currentColor === c ? 'border-slate-700 scale-110' : 'border-white shadow-sm')}
+                                style={{ backgroundColor: c }}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  </div>
+                  </>
                 );
               })()}
             </div>
