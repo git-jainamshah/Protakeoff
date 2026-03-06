@@ -52,6 +52,7 @@ export default function ProjectPage() {
         const blob = await blobUpload(file.name, file, {
           access: 'public',
           handleUploadUrl: '/api/documents/blob-token',
+          headers: { Authorization: `Bearer ${token}` },
           clientPayload: JSON.stringify({ token }),
         });
         return documentsApi.register({
