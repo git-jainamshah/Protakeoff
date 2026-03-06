@@ -22,21 +22,21 @@ interface PageData {
   pdfCanvas: HTMLCanvasElement;
   dims: { width: number; height: number };
 }
-const HIRES_CACHE   = new Map<string, Map<number, PageData>>();
-const THUMB_CACHE   = new Map<string, Array<HTMLImageElement | null>>();
+const HIRES_CACHE    = new Map<string, Map<number, PageData>>();
+const THUMB_CACHE    = new Map<string, Array<HTMLImageElement | null>>();
 const HIRES_INFLIGHT = new Map<string, Promise<PageData>>();
-const DOC_INFLIGHT  = new Map<string, Promise<pdfjsLib.PDFDocumentProxy>>();
-const PDF_DOC_CACHE = new Map<string, pdfjsLib.PDFDocumentProxy>();
-const THUMB_SUBS    = new Map<string, Set<(t: Array<HTMLImageElement | null>) => void>>();
+const DOC_INFLIGHT   = new Map<string, Promise<pdfjsLib.PDFDocumentProxy>>();
+const PDF_DOC_CACHE  = new Map<string, pdfjsLib.PDFDocumentProxy>();
+const THUMB_SUBS     = new Map<string, Set<(t: Array<HTMLImageElement | null>) => void>>();
+// Per-URL running flag so concurrent calls for different URLs don't block each other
+const THUMB_RUNNING  = new Set<string>();
 
 async function loadPdfDoc(url: string): Promise<pdfjsLib.PDFDocumentProxy> {
   if (PDF_DOC_CACHE.has(url)) return PDF_DOC_CACHE.get(url)!;
   if (DOC_INFLIGHT.has(url)) return DOC_INFLIGHT.get(url)!;
   const p = (async () => {
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const buf = await res.arrayBuffer();
-    const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+    // Use pdfjs built-in fetching — it handles range requests and CORS correctly
+    const pdf = await pdfjsLib.getDocument({ url, withCredentials: false }).promise;
     PDF_DOC_CACHE.set(url, pdf); DOC_INFLIGHT.delete(url); return pdf;
   })();
   DOC_INFLIGHT.set(url, p); return p;
@@ -69,9 +69,9 @@ function getHiResPage(url: string, idx: number): Promise<PageData> {
   HIRES_INFLIGHT.set(key, p); return p;
 }
 
-let thumbRunning = false;
 async function generateThumbs(url: string) {
-  if (thumbRunning) return; thumbRunning = true;
+  if (THUMB_RUNNING.has(url)) return;
+  THUMB_RUNNING.add(url);
   try {
     const pdf = await loadPdfDoc(url);
     if (!THUMB_SUBS.has(url)) THUMB_SUBS.set(url, new Set());
@@ -79,38 +79,79 @@ async function generateThumbs(url: string) {
     const arr = THUMB_CACHE.get(url)!;
     for (let i = 0; i < pdf.numPages; i++) {
       if (arr[i]) continue;
-      try { const d = await renderPage(pdf, i, 0.3); arr[i] = d.imgEl; THUMB_SUBS.get(url)?.forEach(f => f([...arr])); } catch { /* skip */ }
+      try {
+        const d = await renderPage(pdf, i, 0.3);
+        arr[i] = d.imgEl;
+        THUMB_SUBS.get(url)?.forEach((f) => f([...arr]));
+      } catch { /* skip bad page */ }
     }
-  } finally { thumbRunning = false; }
+  } finally {
+    THUMB_RUNNING.delete(url);
+  }
 }
 
 async function prefetchPage(url: string, idx: number) {
-  try { const pdf = await loadPdfDoc(url); if (idx < 0 || idx >= pdf.numPages || HIRES_CACHE.get(url)?.has(idx)) return; getHiResPage(url, idx).catch(() => {}); } catch { /* silent */ }
+  try {
+    const pdf = await loadPdfDoc(url);
+    if (idx < 0 || idx >= pdf.numPages || HIRES_CACHE.get(url)?.has(idx)) return;
+    getHiResPage(url, idx).catch(() => {});
+  } catch { /* silent */ }
 }
 
 function usePdfCanvas(url: string, currentPageIdx: number) {
+  // Seed state from module-level caches so re-mounts are instant
   const [pageData,   setPageData]   = useState<PageData | null>(() => HIRES_CACHE.get(url)?.get(currentPageIdx) ?? null);
   const [thumbs,     setThumbs]     = useState<Array<HTMLImageElement | null>>(() => THUMB_CACHE.get(url) ?? []);
-  const [totalPages, setTotalPages] = useState<number>(0);
+  const [totalPages, setTotalPages] = useState<number>(() => PDF_DOC_CACHE.get(url)?.numPages ?? 0);
   const [loading,    setLoading]    = useState(!HIRES_CACHE.get(url)?.has(currentPageIdx) && !!url);
   const [error,      setError]      = useState<string | null>(null);
 
+  // ── Effect 1: always resolve the PDF document (sets totalPages + kicks off thumbs)
+  // Runs whenever the URL changes, regardless of page cache state.
+  useEffect(() => {
+    if (!url) return;
+    let cancelled = false;
+    // If already cached, apply synchronously then still kick off thumb generation
+    const docCached = PDF_DOC_CACHE.get(url);
+    if (docCached) {
+      setTotalPages(docCached.numPages);
+      generateThumbs(url);
+    }
+    loadPdfDoc(url)
+      .then((pdf) => {
+        if (cancelled) return;
+        setTotalPages(pdf.numPages);
+        generateThumbs(url);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [url]);
+
+  // ── Effect 2: render the requested page (uses hi-res cache when available)
   useEffect(() => {
     if (!url) return;
     let cancelled = false;
     const cached = HIRES_CACHE.get(url)?.get(currentPageIdx);
-    if (cached) { setPageData(cached); setLoading(false); return; }
+    if (cached) {
+      setPageData(cached);
+      setLoading(false);
+      prefetchPage(url, currentPageIdx - 1);
+      prefetchPage(url, currentPageIdx + 1);
+      return;
+    }
     setLoading(true); setError(null);
     getHiResPage(url, currentPageIdx)
       .then((data) => {
         if (cancelled) return;
         setPageData(data); setLoading(false);
-        loadPdfDoc(url).then((pdf) => { setTotalPages(pdf.numPages); generateThumbs(url); prefetchPage(url, currentPageIdx - 1); prefetchPage(url, currentPageIdx + 1); }).catch(() => {});
+        prefetchPage(url, currentPageIdx - 1);
+        prefetchPage(url, currentPageIdx + 1);
       })
       .catch((e) => { if (!cancelled) { setError(String(e)); setLoading(false); } });
     return () => { cancelled = true; };
   }, [url, currentPageIdx]);
 
+  // ── Effect 3: subscribe to thumbnail updates
   useEffect(() => {
     if (!url) return;
     const ex = THUMB_CACHE.get(url); if (ex) setThumbs([...ex]);
