@@ -316,15 +316,19 @@ export default function TakeoffPage() {
                         <div className="w-5 h-5 rounded-full border-2 border-white shadow" style={{ backgroundColor: currentColor }} />
                       </button>
                       {colorPickerOpen && (
-                        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 z-50 bg-white border border-slate-200 rounded-2xl p-3 shadow-xl">
-                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 text-center">Color</p>
+                        <div className="absolute top-full right-0 mt-2 z-50 bg-white border border-slate-200 rounded-2xl p-3 shadow-xl" style={{ width: 168 }}>
+                          <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-2.5 text-center">Element Colour</p>
                           <div className="grid grid-cols-5 gap-2">
                             {PRESETS.map(c => (
                               <button key={c}
                                 onClick={() => { colorShape(selectedShapeId, c); setColorPickerOpen(false); }}
                                 title={c}
-                                className={cn('w-7 h-7 rounded-full border-2 transition-all hover:scale-110',
-                                  currentColor === c ? 'border-slate-700 scale-110' : 'border-white shadow-sm')}
+                                className={cn(
+                                  'w-6 h-6 rounded-full transition-all',
+                                  currentColor === c
+                                    ? 'ring-2 ring-offset-2 ring-slate-800'
+                                    : 'hover:ring-2 hover:ring-offset-1 hover:ring-slate-400',
+                                )}
                                 style={{ backgroundColor: c }}
                               />
                             ))}
