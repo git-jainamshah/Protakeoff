@@ -96,6 +96,7 @@ export interface Shape {
   data: ShapeData;
   label?: string | null;
   color?: string | null;
+  page?: number;
   layerId: string;
   createdAt: string;
   updatedAt: string;
@@ -115,6 +116,7 @@ export interface CanvasShape {
   data: ShapeData;
   label?: string;
   color?: string;
+  page?: number;
   layerId: string;
   isNew?: boolean;
 }

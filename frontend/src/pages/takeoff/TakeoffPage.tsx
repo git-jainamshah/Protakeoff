@@ -73,7 +73,7 @@ export default function TakeoffPage() {
       await Promise.all(
         layers.map((l) => {
           const ls = s.filter((x) => x.layerId === l.id);
-          return shapesApi.batchSave(l.id, ls.map((x) => ({ type: x.type, data: x.data, label: x.label, color: x.color })));
+          return shapesApi.batchSave(l.id, ls.map((x) => ({ type: x.type, data: x.data, label: x.label, color: x.color, page: x.page ?? 1 })));
         }),
       );
     },
@@ -92,7 +92,9 @@ export default function TakeoffPage() {
       (l.shapes || []).map((s) => ({
         id: s.id, type: s.type,
         data: typeof s.data === 'string' ? JSON.parse(s.data) : s.data,
-        label: s.label || undefined, color: s.color || undefined, layerId: s.layerId,
+        label: s.label || undefined, color: s.color || undefined,
+        page: (s as { page?: number }).page ?? 1,
+        layerId: s.layerId,
       })),
     );
     setShapes(all);
@@ -136,7 +138,7 @@ export default function TakeoffPage() {
   }, []);
 
   const addShape = useCallback((shape: Omit<CanvasShape, 'id'>) =>
-    pushHistory([...historyRef.current[historyIndexRef.current], { ...shape, id: generateId() }]), [pushHistory]);
+    pushHistory([...historyRef.current[historyIndexRef.current], { ...shape, id: generateId(), page: currentPage }]), [pushHistory, currentPage]);
 
   const updateShape = useCallback((id: string, updates: Partial<CanvasShape>) =>
     pushHistory(historyRef.current[historyIndexRef.current].map((s) => s.id === id ? { ...s, ...updates } : s)), [pushHistory]);
@@ -145,6 +147,9 @@ export default function TakeoffPage() {
     pushHistory(historyRef.current[historyIndexRef.current].filter((s) => s.id !== id));
     setSelectedShapeId((p) => p === id ? null : p);
   }, [pushHistory]);
+
+  const renameShape = useCallback((id: string, label: string) =>
+    pushHistory(historyRef.current[historyIndexRef.current].map((s) => s.id === id ? { ...s, label: label || undefined } : s)), [pushHistory]);
 
   const deleteSelected = useCallback(() => { if (selectedShapeId) deleteShape(selectedShapeId); }, [selectedShapeId, deleteShape]);
 
@@ -189,7 +194,10 @@ export default function TakeoffPage() {
   if (!document) return <div className="h-full flex items-center justify-center text-slate-500">Document not found</div>;
 
   const activeLayer   = layers.find((l) => l.id === activeLayerId);
-  const visibleShapes = shapes.filter((s) => layers.find((l) => l.id === s.layerId)?.visible !== false);
+  const visibleShapes = shapes.filter((s) =>
+    (s.page ?? 1) === currentPage &&
+    layers.find((l) => l.id === s.layerId)?.visible !== false
+  );
   const canUndo = historyState.index > 0;
   const canRedo = historyState.index < historyState.length - 1;
 
@@ -229,6 +237,7 @@ export default function TakeoffPage() {
               onAddShape={addShape}
               onUpdateShape={updateShape}
               onDeleteShape={deleteShape}
+              onRenameShape={renameShape}
               onPageChange={setCurrentPage}
               scale={scale} unit={unit} onScaleChange={setScale}
               currentPage={currentPage}

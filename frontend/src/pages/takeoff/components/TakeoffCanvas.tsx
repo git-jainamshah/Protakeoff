@@ -279,12 +279,13 @@ function EditHandles({ shape, onUpdate }: {
 // ─── Shape renderer ───────────────────────────────────────────────────────────
 function ShapeItem({
   shape, isSelected, activeTool, isDraggable, scale, unit,
-  onSelect, onDelete, onUpdateShape,
+  onSelect, onDelete, onUpdateShape, onRename,
 }: {
   shape: CanvasShape; isSelected: boolean; activeTool: ToolType;
   isDraggable: boolean; scale: number; unit: string;
   onSelect: (id: string) => void; onDelete: (id: string) => void;
   onUpdateShape: (id: string, updates: Partial<CanvasShape>) => void;
+  onRename: (id: string) => void;
 }) {
   const color  = shape.color || '#3B82F6';
   const fill   = color + '28';
@@ -295,6 +296,10 @@ function ShapeItem({
   const click = (e: KonvaEventObject<MouseEvent>) => {
     e.cancelBubble = true;
     activeTool === 'eraser' ? onDelete(shape.id) : onSelect(shape.id);
+  };
+  const dblClick = (e: KonvaEventObject<MouseEvent>) => {
+    e.cancelBubble = true;
+    if (activeTool !== 'eraser') onRename(shape.id);
   };
   const dragEnd = (offsetX: number, offsetY: number) => {
     if (!offsetX && !offsetY) return;
@@ -325,7 +330,7 @@ function ShapeItem({
     const fs = [d.italic ? 'italic' : '', d.bold ? 'bold' : ''].filter(Boolean).join(' ') || 'normal';
     const td = [d.underline && 'underline', d.strikethrough && 'line-through'].filter(Boolean).join(' ');
     return (
-      <Group onClick={click} onTap={click} draggable={isDraggable} onDragEnd={groupDragEnd}>
+      <Group onClick={click} onTap={click} onDblClick={dblClick} draggable={isDraggable} onDragEnd={groupDragEnd}>
         {isSelected && <Rect x={d.x-4} y={d.y-4} width={(d.width||300)+8} height={(d.fontSize||14)*2+8} stroke="#2563EB" strokeWidth={1} dash={[3,2]} listening={false} fill="transparent" />}
         <Text x={d.x} y={d.y} text={d.text || ''} fontSize={d.fontSize || 14}
           fontStyle={fs} textDecoration={td} fill={d.fill || color}
@@ -336,14 +341,16 @@ function ShapeItem({
 
   if (shape.type === 'RECT') {
     const d = shape.data as RectData;
+    const labelText = shape.label || formatArea(Math.abs(d.width)*Math.abs(d.height), unit, scale);
     return (
-      <Group onClick={click} onTap={click} draggable={isDraggable} onDragEnd={groupDragEnd}>
+      <Group onClick={click} onTap={click} onDblClick={dblClick} draggable={isDraggable} onDragEnd={groupDragEnd}>
         <Rect x={d.x} y={d.y} width={d.width} height={d.height}
           fill={fill} stroke={stroke} strokeWidth={sw} dash={dash}
           cornerRadius={d.cornerRadius || 0} hitStrokeWidth={10} />
-        <Text x={d.x + d.width/2 - 44} y={d.y + d.height/2 - 8}
-          text={shape.label || formatArea(Math.abs(d.width)*Math.abs(d.height), unit, scale)}
-          fontSize={11} fill={stroke} fontStyle="bold" align="center" width={88} listening={false} />
+        <Rect x={d.x + d.width/2 - 52} y={d.y + d.height/2 - 11} width={104} height={22}
+          fill="white" opacity={0.85} cornerRadius={4} listening={false} />
+        <Text x={d.x + d.width/2 - 52} y={d.y + d.height/2 - 9}
+          text={labelText} fontSize={14} fill={stroke} fontStyle="bold" align="center" width={104} listening={false} />
       </Group>
     );
   }
@@ -351,11 +358,12 @@ function ShapeItem({
     const d = shape.data as PolygonData;
     if (d.points.length < 6) return null;
     const c = calcPolygonCentroid(d.points);
+    const labelText = shape.label || formatArea(calcPolygonArea(d.points), unit, scale);
     return (
-      <Group onClick={click} onTap={click} draggable={isDraggable} onDragEnd={groupDragEnd}>
+      <Group onClick={click} onTap={click} onDblClick={dblClick} draggable={isDraggable} onDragEnd={groupDragEnd}>
         <Line points={d.points} closed fill={fill} stroke={stroke} strokeWidth={sw} dash={dash} hitStrokeWidth={10} />
-        <Text x={c.x-44} y={c.y-8} text={shape.label || formatArea(calcPolygonArea(d.points), unit, scale)}
-          fontSize={11} fill={stroke} fontStyle="bold" align="center" width={88} listening={false} />
+        <Rect x={c.x-52} y={c.y-11} width={104} height={22} fill="white" opacity={0.85} cornerRadius={4} listening={false} />
+        <Text x={c.x-52} y={c.y-9} text={labelText} fontSize={14} fill={stroke} fontStyle="bold" align="center" width={104} listening={false} />
       </Group>
     );
   }
@@ -363,7 +371,7 @@ function ShapeItem({
     const d = shape.data as LineData;
     if (d.points.length > 8) {
       return (
-        <Group onClick={click} onTap={click} draggable={isDraggable} onDragEnd={groupDragEnd}>
+        <Group onClick={click} onTap={click} onDblClick={dblClick} draggable={isDraggable} onDragEnd={groupDragEnd}>
           <Line points={d.points} stroke={stroke} strokeWidth={isSelected ? 3 : 2} lineCap="round" lineJoin="round" hitStrokeWidth={12} />
         </Group>
       );
@@ -371,22 +379,23 @@ function ShapeItem({
     const len = formatLength(calcLineLength(d.points), unit, scale);
     const mx=(d.points[0]+d.points[2])/2, my=(d.points[1]+d.points[3])/2;
     return (
-      <Group onClick={click} onTap={click} draggable={isDraggable} onDragEnd={groupDragEnd}>
+      <Group onClick={click} onTap={click} onDblClick={dblClick} draggable={isDraggable} onDragEnd={groupDragEnd}>
         <Line points={d.points} stroke={stroke} strokeWidth={sw} dash={[8,4]} hitStrokeWidth={12} />
-        <Circle x={d.points[0]} y={d.points[1]} radius={3} fill={stroke} listening={false} />
-        <Circle x={d.points[2]} y={d.points[3]} radius={3} fill={stroke} listening={false} />
-        <Rect x={mx-28} y={my-10} width={56} height={16} fill="white" stroke={stroke} strokeWidth={0.8} cornerRadius={3} opacity={0.9} listening={false} />
-        <Text x={mx-28} y={my-8} text={shape.label||len} fontSize={10} fill={stroke} fontStyle="bold" align="center" width={56} listening={false} />
+        <Circle x={d.points[0]} y={d.points[1]} radius={4} fill={stroke} listening={false} />
+        <Circle x={d.points[2]} y={d.points[3]} radius={4} fill={stroke} listening={false} />
+        <Rect x={mx-36} y={my-12} width={72} height={20} fill="white" stroke={stroke} strokeWidth={0.8} cornerRadius={4} opacity={0.92} listening={false} />
+        <Text x={mx-36} y={my-10} text={shape.label||len} fontSize={13} fill={stroke} fontStyle="bold" align="center" width={72} listening={false} />
       </Group>
     );
   }
   if (shape.type === 'CIRCLE') {
     const d = shape.data as CircleData;
+    const labelText = shape.label || formatArea(Math.PI*d.radius*d.radius, unit, scale);
     return (
-      <Group onClick={click} onTap={click} draggable={isDraggable} onDragEnd={groupDragEnd}>
+      <Group onClick={click} onTap={click} onDblClick={dblClick} draggable={isDraggable} onDragEnd={groupDragEnd}>
         <Circle x={d.x} y={d.y} radius={d.radius} fill={fill} stroke={stroke} strokeWidth={sw} dash={dash} hitStrokeWidth={10} />
-        <Text x={d.x-44} y={d.y-8} text={shape.label || formatArea(Math.PI*d.radius*d.radius, unit, scale)}
-          fontSize={11} fill={stroke} fontStyle="bold" align="center" width={88} listening={false} />
+        <Rect x={d.x-52} y={d.y-11} width={104} height={22} fill="white" opacity={0.85} cornerRadius={4} listening={false} />
+        <Text x={d.x-52} y={d.y-9} text={labelText} fontSize={14} fill={stroke} fontStyle="bold" align="center" width={104} listening={false} />
       </Group>
     );
   }
@@ -481,17 +490,50 @@ interface Props {
   onAddShape: (shape: Omit<CanvasShape, 'id'>) => void;
   onUpdateShape: (id: string, updates: Partial<CanvasShape>) => void;
   onDeleteShape: (id: string) => void;
+  onRenameShape: (id: string, label: string) => void;
   onPageChange: (page: number) => void;
   scale: number; unit: string; onScaleChange: (s: number) => void;
   currentPage: number;
   metrics?: { area: string; linear: string; count: number };
 }
 
+// ─── Rename Shape Modal ───────────────────────────────────────────────────────
+function RenameShapeModal({ shape, onCommit, onCancel }: {
+  shape: CanvasShape;
+  onCommit: (label: string) => void;
+  onCancel: () => void;
+}) {
+  const defaultLabel = shape.label || '';
+  const [value, setValue] = useState(defaultLabel);
+  return (
+    <Modal open onClose={onCancel} title="Label Element" size="sm">
+      <div className="space-y-4">
+        <input
+          autoFocus
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') onCommit(value);
+            if (e.key === 'Escape') onCancel();
+          }}
+          placeholder={`e.g. ${shape.type === 'RECT' ? 'Living Room' : shape.type === 'LINE' ? 'North Wall' : 'Area 1'}`}
+          className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-400 placeholder:text-slate-400"
+        />
+        <p className="text-[11px] text-slate-400">Leave blank to show the measurement value instead.</p>
+        <div className="flex gap-3">
+          <Button variant="secondary" className="flex-1" onClick={onCancel}>Cancel</Button>
+          <Button className="flex-1" onClick={() => onCommit(value)}>Apply Label</Button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 // ─── Main canvas ──────────────────────────────────────────────────────────────
 export default function TakeoffCanvas({
   documentUrl, activeTool, activeLayerId, activeLayerColor,
   shapes, selectedShapeId, onSelectShape, onAddShape, onUpdateShape, onDeleteShape,
-  onPageChange, scale, unit, onScaleChange, currentPage, metrics,
+  onRenameShape, onPageChange, scale, unit, onScaleChange, currentPage, metrics,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const stageRef     = useRef<Konva.Stage>(null);
@@ -548,6 +590,7 @@ export default function TakeoffCanvas({
   const [calibDist,     setCalibDist]     = useState('');
   const [detectPreview, setDetectPreview] = useState<RectData | null>(null);
   const [textEdit,      setTextEdit]      = useState<TextEditState | null>(null);
+  const [renamingShapeId, setRenamingShapeId] = useState<string | null>(null);
 
   useEffect(() => {
     setIsDrawing(false); setCurrentRect(null); setCurrentLine(null); setCurrentCircle(null);
@@ -858,7 +901,8 @@ export default function TakeoffCanvas({
             <ShapeItem key={s.id} shape={s} isSelected={selectedShapeId===s.id}
               activeTool={activeTool} isDraggable={isDraggableShape}
               scale={scale} unit={unit}
-              onSelect={onSelectShape} onDelete={onDeleteShape} onUpdateShape={onUpdateShape} />
+              onSelect={onSelectShape} onDelete={onDeleteShape} onUpdateShape={onUpdateShape}
+              onRename={(id) => setRenamingShapeId(id)} />
           ))}
 
           {/* Edit handles for selected shape */}
@@ -895,6 +939,19 @@ export default function TakeoffCanvas({
       {textEdit && (
         <TextEditModal state={textEdit} onCommit={commitText} onCancel={() => setTextEdit(null)} />
       )}
+
+      {/* ── Rename Shape Modal ── */}
+      {renamingShapeId && (() => {
+        const s = shapes.find(x => x.id === renamingShapeId);
+        if (!s) return null;
+        return (
+          <RenameShapeModal
+            shape={s}
+            onCommit={(label) => { onRenameShape(renamingShapeId, label); setRenamingShapeId(null); }}
+            onCancel={() => setRenamingShapeId(null)}
+          />
+        );
+      })()}
 
       {/* ── Calibration modal ── */}
       <Modal open={calibModal} onClose={()=>{ setCalibModal(false); setCalibPts([]); }}

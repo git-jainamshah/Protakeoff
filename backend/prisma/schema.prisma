@@ -110,6 +110,7 @@ model Shape {
   data        String   // JSON: shape-specific geometry
   label       String?
   color       String?
+  page        Int      @default(1)
   layerId     String
   layer       Layer    @relation(fields: [layerId], references: [id], onDelete: Cascade)
   createdById String?

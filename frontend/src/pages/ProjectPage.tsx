@@ -3,8 +3,8 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { upload as blobUpload } from '@vercel/blob/client';
 import {
-  ArrowLeft, Upload, FileText, Plus, Trash2, Users, Settings,
-  ChevronRight, Clock, Layers, Eye, Edit3, Shield, ExternalLink
+  ArrowLeft, Upload, FileText, Plus, Trash2, Users,
+  ChevronRight, Clock, Layers, Eye, Edit3, Shield, ExternalLink, Pencil, Check, X
 } from 'lucide-react';
 import { projectsApi, documentsApi } from '@/lib/api';
 import { useAuthStore } from '@/store/authStore';
@@ -35,6 +35,8 @@ export default function ProjectPage() {
   const [inviteRole, setInviteRole] = useState('VIEW');
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
+  const [renamingDocId, setRenamingDocId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState('');
 
   const { data: project, isLoading } = useQuery({
     queryKey: ['project', id],
@@ -81,6 +83,17 @@ export default function ProjectPage() {
     mutationFn: (docId: string) => documentsApi.delete(docId),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['project', id] }); toast.success('Plan deleted'); },
   });
+
+  const renameDocMutation = useMutation({
+    mutationFn: ({ docId, name }: { docId: string; name: string }) => documentsApi.update(docId, { name }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['project', id] }); toast.success('Plan renamed'); setRenamingDocId(null); },
+    onError: () => setRenamingDocId(null),
+  });
+
+  const commitRename = () => {
+    if (!renamingDocId || !renameValue.trim()) { setRenamingDocId(null); return; }
+    renameDocMutation.mutate({ docId: renamingDocId, name: renameValue.trim() });
+  };
 
   const inviteMutation = useMutation({
     mutationFn: () => projectsApi.addMember(id!, { email: inviteEmail, role: inviteRole }),
@@ -213,12 +226,13 @@ export default function ProjectPage() {
               {(project.documents as Document[]).map((doc) => (
                 <div
                   key={doc.id}
-                  className="card p-4 hover:border-slate-600 hover:shadow-card-hover transition-all cursor-pointer group"
-                  onClick={() => navigate(`/projects/${id}/takeoff/${doc.id}`)}
+                  className="card p-4 hover:border-slate-300 hover:shadow-card-hover transition-all group"
+                  onClick={() => renamingDocId !== doc.id && navigate(`/projects/${id}/takeoff/${doc.id}`)}
+                  style={{ cursor: renamingDocId === doc.id ? 'default' : 'pointer' }}
                 >
                   <div className="flex items-start justify-between mb-3">
-                    <div className="w-10 h-10 rounded-lg bg-red-500/10 border border-red-500/20 flex items-center justify-center">
-                      <FileText className="w-5 h-5 text-red-400" />
+                    <div className="w-10 h-10 rounded-lg bg-red-50 border border-red-100 flex items-center justify-center">
+                      <FileText className="w-5 h-5 text-red-500" />
                     </div>
                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
                       <button
@@ -229,19 +243,46 @@ export default function ProjectPage() {
                         <ExternalLink className="w-3.5 h-3.5" />
                       </button>
                       {isAdmin && (
-                        <button
-                          onClick={() => { if (confirm('Delete this plan?')) deleteDocMutation.mutate(doc.id); }}
-                          className="btn-ghost p-1.5 rounded text-red-400 hover:text-red-300"
-                          title="Delete"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                        <>
+                          <button
+                            onClick={() => { setRenamingDocId(doc.id); setRenameValue(doc.name); }}
+                            className="btn-ghost p-1.5 rounded"
+                            title="Rename plan"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => { if (confirm('Delete this plan?')) deleteDocMutation.mutate(doc.id); }}
+                            className="btn-ghost p-1.5 rounded text-red-400 hover:text-red-500"
+                            title="Delete"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </>
                       )}
                     </div>
                   </div>
 
-                  <h3 className="text-sm font-semibold text-slate-800 truncate mb-1">{doc.name}</h3>
-                  <div className="flex items-center gap-3 text-xs text-slate-600">
+                  {renamingDocId === doc.id ? (
+                    <div className="flex items-center gap-1 mb-1" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        autoFocus
+                        value={renameValue}
+                        onChange={(e) => setRenameValue(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') commitRename();
+                          if (e.key === 'Escape') setRenamingDocId(null);
+                        }}
+                        onBlur={commitRename}
+                        className="flex-1 text-sm font-semibold text-slate-800 border border-brand-400 rounded-lg px-2 py-0.5 focus:outline-none focus:ring-2 focus:ring-brand-400/30 bg-white"
+                      />
+                      <button onMouseDown={commitRename} className="p-1 text-emerald-600 hover:text-emerald-700"><Check className="w-3.5 h-3.5" /></button>
+                      <button onMouseDown={() => setRenamingDocId(null)} className="p-1 text-slate-400 hover:text-slate-600"><X className="w-3.5 h-3.5" /></button>
+                    </div>
+                  ) : (
+                    <h3 className="text-sm font-semibold text-slate-800 truncate mb-1">{doc.name}</h3>
+                  )}
+                  <div className="flex items-center gap-3 text-xs text-slate-500">
                     <span>{doc.pageCount} page{doc.pageCount > 1 ? 's' : ''}</span>
                     {doc.fileSize && <span>{formatFileSize(doc.fileSize)}</span>}
                     <span>{formatDate(doc.createdAt)}</span>

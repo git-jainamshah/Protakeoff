@@ -91,7 +91,7 @@ export const shapesApi = {
   list: (layerId: string) => api.get(`/shapes/layer/${layerId}`).then((r) => r.data),
   create: (layerId: string, data: { type: string; data: unknown; label?: string; color?: string }) =>
     api.post(`/shapes/layer/${layerId}`, data).then((r) => r.data),
-  batchSave: (layerId: string, shapes: Array<{ type: string; data: unknown; label?: string; color?: string }>) =>
+  batchSave: (layerId: string, shapes: Array<{ type: string; data: unknown; label?: string; color?: string; page?: number }>) =>
     api.post(`/shapes/layer/${layerId}/batch`, { shapes }).then((r) => r.data),
   update: (id: string, data: Partial<{ type: string; data: unknown; label: string; color: string }>) =>
     api.put(`/shapes/${id}`, data).then((r) => r.data),

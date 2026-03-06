@@ -22,7 +22,7 @@ router.get('/layer/:layerId', async (req: AuthRequest, res: Response): Promise<v
 router.post('/layer/:layerId', async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const layerId = req.params.layerId as string;
-    const { type, data, label, color } = req.body;
+    const { type, data, label, color, page } = req.body;
     if (!type || !data) { res.status(400).json({ error: 'Type and data are required' }); return; }
 
     const shape = await prisma.shape.create({
@@ -31,6 +31,7 @@ router.post('/layer/:layerId', async (req: AuthRequest, res: Response): Promise<
         data: typeof data === 'string' ? data : JSON.stringify(data),
         label,
         color,
+        page: page ? parseInt(page) : 1,
         layerId,
         createdById: req.user!.userId,
       },
@@ -52,11 +53,12 @@ router.post('/layer/:layerId/batch', async (req: AuthRequest, res: Response): Pr
 
     if (shapes.length > 0) {
       await prisma.shape.createMany({
-        data: shapes.map((s: { type: string; data: unknown; label?: string; color?: string }) => ({
+        data: shapes.map((s: { type: string; data: unknown; label?: string; color?: string; page?: number }) => ({
           type: s.type,
           data: typeof s.data === 'string' ? s.data : JSON.stringify(s.data),
           label: s.label,
           color: s.color,
+          page: s.page ?? 1,
           layerId,
           createdById: req.user!.userId,
         })),
