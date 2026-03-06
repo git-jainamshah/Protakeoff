@@ -1,4 +1,3 @@
-import 'dotenv/config';
 import { createApp } from '../backend/src/app.js';
 import serverlessHttp from 'serverless-http';
 

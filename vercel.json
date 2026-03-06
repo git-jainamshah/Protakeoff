@@ -4,11 +4,10 @@
   "functions": {
     "api/[[...path]].ts": {
       "maxDuration": 60,
-      "includeFiles": "backend/node_modules/.prisma/client/**"
+      "includeFiles": "{node_modules/.prisma/client/**,backend/node_modules/.prisma/client/**}"
     }
   },
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api/$1" },
     { "source": "/((?!api/).*)", "destination": "/index.html" }
   ],
   "headers": [
