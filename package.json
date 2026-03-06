@@ -13,7 +13,7 @@
     "prisma:generate": "npm run prisma:generate --prefix backend",
     "prisma:studio": "npm run prisma:studio --prefix backend",
     "seed": "cd backend && DATABASE_URL='file:./prisma/dev.db' npx tsx prisma/seed.ts",
-    "vercel:build": "(cd frontend && npm install && npm run build) && (cd backend && npm install && npx prisma generate)",
+    "vercel:build": "(cd frontend && rm -rf node_modules && npm install && npm run build) && (cd backend && rm -rf node_modules && npm install && npx prisma generate)",
     "render:build": "npm install --prefix frontend && npm run build --prefix frontend && npm run prisma:generate --prefix backend && npm run build --prefix backend",
     "render:start": "cd backend && mkdir -p uploads && npx prisma migrate deploy && NODE_ENV=production node dist/src/server.js"
   },
