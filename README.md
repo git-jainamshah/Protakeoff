@@ -1,153 +1,188 @@
-# ProTakeOff — Construction Takeoff & Estimation Platform
+# ProTakeOff — Construction Estimation Platform
 
-> **Industry-grade, browser-native construction quantity takeoff and cost estimation.**
-> Upload PDFs, draw measurement shapes, calibrate scale, build estimates — all in one tool.
-
-[![Node.js](https://img.shields.io/badge/Node.js-20+-339933?logo=nodedotjs)](https://nodejs.org)
-[![React](https://img.shields.io/badge/React-18-61DAFB?logo=react)](https://react.dev)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178C6?logo=typescript)](https://typescriptlang.org)
-[![Prisma](https://img.shields.io/badge/Prisma-6-2D3748?logo=prisma)](https://prisma.io)
-[![SQLite](https://img.shields.io/badge/SQLite-dev-003B57?logo=sqlite)](https://sqlite.org)
+> Industry-grade web application for construction engineering project takeoff & cost estimation. Upload PDF plans, draw precise measurements directly on plans, manage projects across teams, and export detailed estimates.
 
 ---
 
-## One-Command Setup
+## ✨ Key Features
+
+| Feature | Description |
+|---|---|
+| **PDF Plan Viewer** | Upload multi-page PDF construction plans; pages render fast with lazy loading & session caching |
+| **Interactive Canvas** | Draw rectangles, polygons, lines, circles, freehand areas & text annotations directly over plans |
+| **Smart Tools** | Auto-scale calibration, auto-detect room boundaries, count markers, freeform shapes |
+| **Shape Editing** | Select & resize any shape using corner/edge handles; move shapes by dragging |
+| **Layer System** | Organise measurements into named layers (Area / Linear / Count types) with colour coding |
+| **Live Estimates** | Measurements auto-calculate into a cost estimate panel with per-layer totals |
+| **Role-Based Access** | Platform roles (SUPER_ADMIN / ADMIN / MEMBER) + per-project roles (Admin / Edit / View) |
+| **Version History** | Full GitHub-backed version control — browse commits, one-click revert up to any point |
+| **Admin Portal** | Platform stats, user management, project overview |
+| **Auto-Save** | Changes debounce-save to the server every 3 seconds |
+
+---
+
+## 🛠 Tech Stack
+
+### Frontend
+| Technology | Version | Purpose |
+|---|---|---|
+| React | 18 | UI framework |
+| TypeScript | 5 | Type safety |
+| Vite | 6 | Build tool & dev server |
+| Tailwind CSS | 3 | Utility-first styling |
+| React Router | 7 | Client-side routing |
+| Zustand | latest | Auth & global state |
+| TanStack Query | v5 | Server state & caching |
+| react-konva | latest | Canvas drawing engine |
+| pdfjs-dist | latest | PDF rendering |
+| Lucide React | latest | Icon set |
+| react-hook-form + Zod | latest | Forms & validation |
+
+### Backend
+| Technology | Version | Purpose |
+|---|---|---|
+| Node.js | 20 | Runtime |
+| TypeScript | 5 | Type safety |
+| Express | 5 | HTTP server |
+| Prisma | 6 | ORM & migrations |
+| SQLite | — | Database (dev); swap for PostgreSQL in prod |
+| JWT + bcryptjs | — | Authentication |
+| Multer | — | File upload handling |
+| simple-git | — | Git operations for version history |
+
+---
+
+## 🚀 Quick Start (One Command)
 
 ```bash
-git clone https://github.com/git-jainamshah/Protakeoff.git protakeoff-studio
-cd protakeoff-studio
-chmod +x setup.sh && ./setup.sh
+# Clone and run in one shot
+git clone https://github.com/git-jainamshah/Protakeoff.git && cd Protakeoff && bash setup.sh
+```
+
+Then open **http://localhost:5173**
+
+---
+
+## 🔧 Manual Setup
+
+### Prerequisites
+- Node.js 20+
+- npm 9+
+- Git
+
+### Steps
+
+```bash
+# 1 — Clone
+git clone https://github.com/git-jainamshah/Protakeoff.git
+cd Protakeoff
+
+# 2 — Install all dependencies (root + frontend + backend)
+npm install
+npm install --prefix frontend
+npm install --prefix backend
+
+# 3 — Configure backend environment
+cp backend/.env.example backend/.env.local
+# Edit backend/.env.local if needed (defaults work out of the box)
+
+# 4 — Set up the database & seed demo data
+cd backend
+DATABASE_URL="file:./prisma/dev.db" npx prisma migrate dev --name init
+DATABASE_URL="file:./prisma/dev.db" npx prisma db seed
+cd ..
+
+# 5 — Start both servers
 npm run dev
 ```
 
-That's it. Open **http://localhost:5173** → sign up or use the demo credentials.
-
----
-
-## Demo Login (after running `npm run seed`)
-```
-Email:    admin@protakeoff.dev
-Password: ProTakeOff@2026
-```
-> Full credentials & server URLs in `CREDENTIALS.local.txt` (gitignored for safety).
-
----
-
-## Tech Stack
-
-| Layer | Technology |
+| URL | Service |
 |---|---|
-| **Frontend** | React 18, TypeScript, Vite 6, Tailwind CSS 3 |
-| **State** | Zustand (auth) + TanStack Query v5 (server) |
-| **Canvas** | react-konva (Konva.js) + pdfjs-dist |
-| **Forms** | react-hook-form + Zod |
-| **Backend** | Node.js 20, Express 5, TypeScript |
-| **ORM** | Prisma 6 |
-| **Database** | SQLite (dev) → PostgreSQL (production) |
-| **Auth** | JWT (24h tokens) + bcrypt password hashing |
-| **File Upload** | multer (100MB limit, local storage) |
+| http://localhost:5173 | Frontend |
+| http://localhost:3001 | Backend API |
+| http://localhost:3001/api/health | Health check |
 
 ---
 
-## Key Features
+## 🔑 Default Login
 
-- **PDF Takeoff Canvas** — Upload construction plans and draw precision measurements
-- **Drawing Tools** — Rectangle, Polygon, Line/Ruler, Circle, Scale Calibrator
-- **Layer System** — Organize by type: Area, Linear, Count with live totals
-- **Cost Estimator** — Add unit prices per layer → auto-calculate grand total → export CSV
-- **50-Step Undo/Redo** + Auto-save every 3 seconds
-- **User Auth** — JWT-based login/signup with company setup
-- **Role-Based Access** — Project roles: Admin / Edit / View
-- **Admin Portal** — Platform stats + user management
-- **Version History** — Visual git commit timeline with one-click restore (local + GitHub)
+```
+Email    : admin@protakeoff.dev
+Password : ProTakeOff@2026
+Role     : SUPER_ADMIN
+```
 
 ---
 
-## Project Structure
+## 📁 Project Structure
 
 ```
 protakeoff-studio/
-├── setup.sh              ← One-command setup script
-├── ARCHITECTURE.md       ← Full technical reference (living doc)
-├── CREDENTIALS.local.txt ← Dev credentials (gitignored)
-├── backend/              ← Express API + Prisma + SQLite
-│   ├── .env.example      ← Environment template
-│   ├── prisma/           ← Schema + migrations + seed
-│   └── src/              ← Routes, middleware, lib
-└── frontend/             ← React + Vite SPA
-    └── src/              ← Pages, components, canvas engine
+├── frontend/                   # React + Vite app
+│   ├── src/
+│   │   ├── components/         # Shared UI components
+│   │   ├── lib/                # API client, utils, auth store
+│   │   ├── pages/              # Route-level pages
+│   │   │   ├── auth/           # Login, Signup
+│   │   │   ├── admin/          # Admin Portal, Version History
+│   │   │   └── takeoff/        # Canvas editor + tools
+│   │   └── types/              # TypeScript type definitions
+│   ├── public/                 # Static assets (favicon, etc.)
+│   └── tailwind.config.ts
+│
+├── backend/                    # Express + Prisma API
+│   ├── src/
+│   │   ├── routes/             # auth, projects, documents, shapes, layers, admin
+│   │   ├── middleware/         # JWT auth, role guards
+│   │   └── server.ts           # Entry point
+│   └── prisma/
+│       ├── schema.prisma       # Database schema
+│       └── seed.ts             # Demo data seeder
+│
+├── setup.sh                    # One-command setup script
+├── package.json                # Root — runs both servers via concurrently
+└── README.md
 ```
 
 ---
 
-## Manual Setup (step by step)
+## 🌍 Environment Variables
 
-```bash
-# 1. Clone
-git clone https://github.com/git-jainamshah/Protakeoff.git protakeoff-studio
-cd protakeoff-studio
-
-# 2. Install all dependencies
-npm install
-npm install --prefix backend
-npm install --prefix frontend
-
-# 3. Environment setup
-cp backend/.env.example backend/.env.local
-# Edit backend/.env.local — update JWT_SECRET for production
-
-# 4. Database
-cd backend
-DATABASE_URL="file:./prisma/dev.db" npx prisma migrate dev --name init
-cd ..
-
-# 5. (Optional) Seed demo data
-npm run seed
-
-# 6. Start
-npm run dev
-```
+| Variable | Default | Description |
+|---|---|---|
+| `DATABASE_URL` | `file:./prisma/dev.db` | Database connection string |
+| `JWT_SECRET` | *(see .env.example)* | JWT signing secret — **change in production** |
+| `PORT` | `3001` | Backend port |
+| `FRONTEND_URL` | `http://localhost:5173` | CORS allowed origin |
+| `GITHUB_TOKEN` | *(optional)* | PAT for Version History GitHub integration |
+| `GITHUB_REPO` | *(optional)* | `owner/repo` for Version History |
 
 ---
 
-## Available Scripts
+## 🔄 Version History
 
-```bash
-npm run dev              # Start frontend (:5173) + backend (:5000)
-npm run dev-frontend     # Frontend only
-npm run dev-backend      # Backend only
-npm run seed             # Create demo admin account
-npm run prisma:studio    # Open Prisma DB GUI (:5555)
-npm run prisma:migrate   # Run pending migrations
-npm run build            # Production build (frontend)
-```
+ProTakeOff has a built-in **Git-backed version control** panel (Admin → Version History):
+- Displays up to the last 20 commits
+- One-click revert to any previous version
+- Shows commit author, message, date, and hash
+
+To enable: set `GITHUB_TOKEN` and `GITHUB_REPO` in `backend/.env.local`.
 
 ---
 
-## Switching to PostgreSQL (Production)
+## 🚢 Production Notes
 
-1. Change `backend/.env.local`:
-   ```
-   DATABASE_URL="postgresql://user:password@host:5432/protakeoff"
-   ```
-2. Change `backend/prisma/schema.prisma`: `provider = "postgresql"`
-3. Run: `npx prisma migrate deploy`
+Before deploying to production:
 
----
-
-## Architecture Deep-Dive
-
-See **[ARCHITECTURE.md](./ARCHITECTURE.md)** for the full technical reference including:
-- Complete database schema (ER diagram + model details)
-- API endpoint documentation
-- Canvas engine architecture (PDF.js pipeline + Konva stage)
-- Auth flow, role permissions
-- Version history feature internals
-- Deployment guide
-- Feature roadmap
+1. Set a strong `JWT_SECRET` (64+ random characters)
+2. Switch `DATABASE_URL` to a PostgreSQL connection string
+3. Update `FRONTEND_URL` to your production domain
+4. Configure file storage (AWS S3 / Cloudinary) for uploaded PDFs
+5. Set `NODE_ENV=production`
+6. Add `GITHUB_TOKEN` for version history
 
 ---
 
-## License
+## 📄 License
 
-Proprietary — © 2026 ProTakeOff · All rights reserved.
+MIT — build freely.

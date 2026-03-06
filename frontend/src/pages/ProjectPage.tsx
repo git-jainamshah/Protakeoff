@@ -92,9 +92,9 @@ export default function ProjectPage() {
     <div className="p-8 max-w-6xl mx-auto">
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-xs text-slate-500 mb-6">
-        <Link to="/dashboard" className="hover:text-slate-300 transition-colors">Dashboard</Link>
+        <Link to="/dashboard" className="hover:text-slate-600 transition-colors">Dashboard</Link>
         <ChevronRight className="w-3 h-3" />
-        <span className="text-slate-300">{project.name}</span>
+        <span className="text-slate-700">{project.name}</span>
       </div>
 
       {/* Header */}
@@ -105,7 +105,7 @@ export default function ProjectPage() {
           </button>
           <div>
             <div className="flex items-center gap-3 mb-1">
-              <h1 className="text-2xl font-bold text-white">{project.name}</h1>
+              <h1 className="text-2xl font-bold text-slate-900">{project.name}</h1>
               <Badge variant={project.status === 'ACTIVE' ? 'success' : project.status === 'COMPLETED' ? 'info' : 'default'}>
                 {project.status}
               </Badge>
@@ -152,7 +152,7 @@ export default function ProjectPage() {
               'flex items-center gap-2 pb-3 text-sm font-medium border-b-2 transition-colors',
               activeTab === tid
                 ? 'text-brand-400 border-brand-500'
-                : 'text-slate-500 border-transparent hover:text-slate-300'
+                : 'text-slate-500 border-transparent hover:text-slate-600'
             )}
           >
             <Icon className="w-4 h-4" />
@@ -178,7 +178,7 @@ export default function ProjectPage() {
               onClick={() => isAdmin && fileRef.current?.click()}
             >
               <Upload className="w-10 h-10 text-slate-600 mx-auto mb-3" />
-              <h3 className="text-base font-semibold text-slate-400 mb-1">No plans uploaded yet</h3>
+              <h3 className="text-base font-semibold text-slate-700 mb-1">No plans uploaded yet</h3>
               <p className="text-sm text-slate-600 mb-4">Upload PDF construction plans to start your takeoff</p>
               {isAdmin && (
                 <Button size="sm" onClick={() => fileRef.current?.click()}>
@@ -218,7 +218,7 @@ export default function ProjectPage() {
                     </div>
                   </div>
 
-                  <h3 className="text-sm font-semibold text-slate-200 truncate mb-1">{doc.name}</h3>
+                  <h3 className="text-sm font-semibold text-slate-800 truncate mb-1">{doc.name}</h3>
                   <div className="flex items-center gap-3 text-xs text-slate-600">
                     <span>{doc.pageCount} page{doc.pageCount > 1 ? 's' : ''}</span>
                     {doc.fileSize && <span>{formatFileSize(doc.fileSize)}</span>}
@@ -250,7 +250,7 @@ export default function ProjectPage() {
             <div key={member.id} className="card px-4 py-3 flex items-center gap-4">
               <Avatar name={member.user.name} src={member.user.avatar} size="sm" />
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-slate-200">{member.user.name}</p>
+                <p className="text-sm font-medium text-slate-800">{member.user.name}</p>
                 <p className="text-xs text-slate-500">{member.user.email}</p>
               </div>
               <div className="flex items-center gap-2">
@@ -301,7 +301,7 @@ export default function ProjectPage() {
                   )}
                 >
                   <Icon className={cn('w-4 h-4 mb-1.5', inviteRole === role ? 'text-brand-400' : 'text-slate-500')} />
-                  <p className="text-xs font-medium text-slate-300">{role}</p>
+                  <p className="text-xs font-medium text-slate-700">{role}</p>
                   <p className="text-[11px] text-slate-600">{desc}</p>
                 </button>
               ))}

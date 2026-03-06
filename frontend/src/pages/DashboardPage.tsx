@@ -53,7 +53,7 @@ function ProjectCard({ project, onOpen }: { project: Project; onOpen: (p: Projec
             <FolderOpen className="w-5 h-5 text-brand-400" />
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-slate-100 group-hover:text-white transition-colors leading-tight">
+            <h3 className="text-sm font-semibold text-slate-800 group-hover:text-slate-900 transition-colors leading-tight">
               {project.name}
             </h3>
             {project.clientName && (
@@ -170,7 +170,7 @@ export default function DashboardPage() {
       {/* Header */}
       <div className="flex items-start justify-between mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-white">
+          <h1 className="text-2xl font-bold text-slate-900">
             Good {new Date().getHours() < 12 ? 'morning' : new Date().getHours() < 17 ? 'afternoon' : 'evening'},{' '}
             <span className="text-gradient">{user?.name?.split(' ')[0]}</span>
           </h1>
@@ -196,7 +196,7 @@ export default function DashboardPage() {
               <p className="text-xs text-slate-500">{s.label}</p>
               <s.icon className={cn('w-4 h-4', s.color)} />
             </div>
-            <p className="text-2xl font-bold text-white">{s.value}</p>
+            <p className="text-2xl font-bold text-slate-900">{s.value}</p>
           </div>
         ))}
       </div>
@@ -237,7 +237,7 @@ export default function DashboardPage() {
           <div className="w-16 h-16 rounded-2xl bg-surface-card border border-surface-border flex items-center justify-center mb-4">
             <FolderOpen className="w-8 h-8 text-slate-600" />
           </div>
-          <h3 className="text-base font-semibold text-slate-300 mb-1">No projects yet</h3>
+          <h3 className="text-base font-semibold text-slate-700 mb-1">No projects yet</h3>
           <p className="text-sm text-slate-600 mb-6 max-w-xs">
             Create your first project to start uploading plans and building estimates.
           </p>

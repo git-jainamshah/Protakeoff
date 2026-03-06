@@ -55,7 +55,7 @@ function CommitCard({
               {isCurrent && <Badge variant="info">Current</Badge>}
               {index === 0 && !isCurrent && <Badge variant="default">Latest</Badge>}
             </div>
-            <p className="text-sm font-medium text-slate-200 leading-tight">{commit.message}</p>
+            <p className="text-sm font-medium text-slate-700 leading-tight">{commit.message}</p>
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
             {commit.url && (
@@ -174,7 +174,7 @@ export default function VersionHistoryPage() {
           onClick={() => setSource('local')}
           className={cn(
             'flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all',
-            source === 'local' ? 'bg-brand-600 text-white' : 'text-slate-500 hover:text-slate-300'
+            source === 'local' ? 'bg-brand-600 text-white' : 'text-slate-500 hover:text-slate-600'
           )}
         >
           <GitBranch className="w-4 h-4" /> Local Repository
@@ -183,7 +183,7 @@ export default function VersionHistoryPage() {
           onClick={() => setSource('github')}
           className={cn(
             'flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all',
-            source === 'github' ? 'bg-brand-600 text-white' : 'text-slate-500 hover:text-slate-300'
+            source === 'github' ? 'bg-brand-600 text-white' : 'text-slate-500 hover:text-slate-600'
           )}
         >
           <Github className="w-4 h-4" /> GitHub Remote
@@ -270,7 +270,7 @@ export default function VersionHistoryPage() {
           <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
             <p className="text-sm text-amber-300 font-medium mb-1">Restoring to:</p>
             <p className="text-xs text-amber-400 font-mono">{confirmRestore?.hash.slice(0, 12)}</p>
-            <p className="text-sm text-slate-300 mt-1">{confirmRestore?.message}</p>
+            <p className="text-sm text-slate-600 mt-1">{confirmRestore?.message}</p>
           </div>
           <p className="text-sm text-slate-400">
             This will check out the selected commit. Your current uncommitted work will be stashed automatically.

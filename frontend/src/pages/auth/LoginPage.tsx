@@ -45,10 +45,10 @@ export default function LoginPage() {
           <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center shadow-glass mx-auto mb-8">
             <Layers className="w-8 h-8 text-white" />
           </div>
-          <h1 className="text-4xl font-bold text-white mb-4 tracking-tight">
+          <h1 className="text-4xl font-bold text-slate-900 mb-4 tracking-tight">
             Pro<span className="text-gradient">TakeOff</span>
           </h1>
-          <p className="text-slate-400 text-lg leading-relaxed">
+          <p className="text-slate-600 text-lg leading-relaxed">
             Industry-grade construction takeoff & cost estimation for modern engineering teams.
           </p>
           <div className="mt-12 grid grid-cols-3 gap-4 text-center">
@@ -74,11 +74,11 @@ export default function LoginPage() {
             <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center">
               <Layers className="w-4 h-4 text-white" />
             </div>
-            <span className="text-xl font-bold text-white">ProTakeOff</span>
+            <span className="text-xl font-bold text-slate-900">ProTakeOff</span>
           </div>
 
           <div className="mb-8">
-            <h2 className="text-2xl font-bold text-white">Sign in</h2>
+            <h2 className="text-2xl font-bold text-slate-900">Sign in</h2>
             <p className="text-slate-400 text-sm mt-1">Access your workspace</p>
           </div>
 

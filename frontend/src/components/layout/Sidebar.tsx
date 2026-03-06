@@ -44,8 +44,8 @@ export default function Sidebar() {
             <Layers className="w-4 h-4 text-white" />
           </div>
           <div>
-            <p className="text-sm font-bold text-white leading-none tracking-wide">ProTakeOff</p>
-            <p className="text-[10px] text-slate-500 leading-none mt-0.5">Estimation Platform</p>
+            <p className="text-sm font-bold text-slate-900 leading-none tracking-wide">ProTakeOff</p>
+            <p className="text-[10px] text-slate-400 leading-none mt-0.5">Estimation Platform</p>
           </div>
         </Link>
       </div>
@@ -85,7 +85,7 @@ export default function Sidebar() {
 
       {/* Version badge */}
       <div className="px-4 py-2">
-        <div className="flex items-center gap-1.5 px-2 py-1.5 rounded-md bg-surface-card border border-surface-border">
+        <div className="flex items-center gap-1.5 px-2 py-1.5 rounded-md bg-slate-50 border border-slate-200">
           <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
           <span className="text-[10px] text-slate-500">v1.0.0 · Live</span>
         </div>
@@ -93,16 +93,16 @@ export default function Sidebar() {
 
       {/* User */}
       <div className="px-3 py-3 border-t border-surface-border">
-        <div className="flex items-center gap-2 px-2 py-2 rounded-lg hover:bg-surface-hover cursor-pointer group">
+        <div className="flex items-center gap-2 px-2 py-2 rounded-lg hover:bg-slate-50 cursor-pointer group">
           <Avatar name={user?.name || 'U'} src={user?.avatar} size="sm" />
           <div className="flex-1 min-w-0">
-            <p className="text-xs font-medium text-slate-200 truncate">{user?.name}</p>
+            <p className="text-xs font-semibold text-slate-800 truncate">{user?.name}</p>
             <p className="text-[10px] text-slate-500 truncate">{user?.role}</p>
           </div>
           <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
             <button
               onClick={() => navigate('/settings')}
-              className="p-1 rounded text-slate-500 hover:text-slate-300 transition-colors"
+              className="p-1 rounded text-slate-500 hover:text-slate-700 transition-colors"
               title="Settings"
             >
               <Settings className="w-3 h-3" />

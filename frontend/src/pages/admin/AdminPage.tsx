@@ -43,7 +43,7 @@ export default function AdminPage() {
         </div>
         <button
           onClick={() => navigate('/admin/versions')}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-surface-card border border-surface-border text-sm text-slate-300 hover:border-brand-500 hover:text-brand-400 transition-colors"
+          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-surface-card border border-surface-border text-sm text-slate-600 hover:border-brand-500 hover:text-brand-400 transition-colors"
         >
           <GitBranch className="w-4 h-4" />
           Version History
@@ -70,7 +70,7 @@ export default function AdminPage() {
           <div className="flex items-center justify-between p-5 border-b border-surface-border">
             <div className="flex items-center gap-2">
               <TrendingUp className="w-4 h-4 text-slate-500" />
-              <h2 className="text-sm font-semibold text-slate-200">Recent Projects</h2>
+              <h2 className="text-sm font-semibold text-slate-700">Recent Projects</h2>
             </div>
           </div>
           <div className="divide-y divide-surface-border/50">
@@ -82,7 +82,7 @@ export default function AdminPage() {
                   <FolderOpen className="w-4 h-4 text-brand-400" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-slate-200 truncate">{p.name}</p>
+                  <p className="text-sm font-medium text-slate-700 truncate">{p.name}</p>
                   <p className="text-xs text-slate-500 truncate">{p.company?.name}</p>
                 </div>
                 <div className="text-right">
@@ -101,7 +101,7 @@ export default function AdminPage() {
           <div className="flex items-center justify-between p-5 border-b border-surface-border">
             <div className="flex items-center gap-2">
               <Activity className="w-4 h-4 text-slate-500" />
-              <h2 className="text-sm font-semibold text-slate-200">Recent Users</h2>
+              <h2 className="text-sm font-semibold text-slate-700">Recent Users</h2>
             </div>
           </div>
           <div className="divide-y divide-surface-border/50">
@@ -111,7 +111,7 @@ export default function AdminPage() {
               <div key={u.id} className="flex items-center gap-3 p-4 hover:bg-surface-hover/30 transition-colors">
                 <Avatar name={u.name} src={u.avatar} size="sm" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-slate-200 truncate">{u.name}</p>
+                  <p className="text-sm font-medium text-slate-700 truncate">{u.name}</p>
                   <p className="text-xs text-slate-500 truncate">{u.email}</p>
                 </div>
                 <div className="text-right">
@@ -131,7 +131,7 @@ export default function AdminPage() {
             <Layers className="w-4 h-4 text-white" />
           </div>
           <div>
-            <p className="text-sm font-semibold text-slate-200">ProTakeOff Platform</p>
+            <p className="text-sm font-semibold text-slate-700">ProTakeOff Platform</p>
             <p className="text-xs text-slate-500">Precision Takeoffs. Professional Estimates.</p>
           </div>
         </div>
@@ -144,7 +144,7 @@ export default function AdminPage() {
           ].map((item) => (
             <div key={item.label} className="bg-surface rounded-lg p-3 border border-surface-border">
               <p className="text-[10px] text-slate-600 mb-1">{item.label}</p>
-              <p className="text-xs text-slate-300 font-medium">{item.value}</p>
+              <p className="text-xs text-slate-600 font-medium">{item.value}</p>
             </div>
           ))}
         </div>

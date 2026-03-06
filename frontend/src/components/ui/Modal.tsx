@@ -47,8 +47,8 @@ export function Modal({ open, onClose, title, description, children, size = 'md'
         {(title || description) && (
           <div className="flex items-start justify-between p-6 pb-4 border-b border-surface-border">
             <div>
-              {title && <h2 className="text-base font-semibold text-slate-100">{title}</h2>}
-              {description && <p className="text-sm text-slate-400 mt-0.5">{description}</p>}
+              {title && <h2 className="text-base font-semibold text-slate-900">{title}</h2>}
+              {description && <p className="text-sm text-slate-500 mt-0.5">{description}</p>}
             </div>
             <button
               onClick={onClose}

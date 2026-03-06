@@ -75,7 +75,7 @@ export interface Document {
 // ─── Layer / Shape ────────────────────────────────────────────────────────────
 
 export type LayerType = 'AREA' | 'LINEAR' | 'COUNT';
-export type ShapeType = 'RECT' | 'POLYGON' | 'LINE' | 'CIRCLE';
+export type ShapeType = 'RECT' | 'POLYGON' | 'LINE' | 'CIRCLE' | 'TEXT';
 
 export interface Layer {
   id: string;
@@ -101,11 +101,12 @@ export interface Shape {
   updatedAt: string;
 }
 
-export interface RectData { x: number; y: number; width: number; height: number; rotation?: number; }
+export interface RectData { x: number; y: number; width: number; height: number; rotation?: number; cornerRadius?: number; }
 export interface PolygonData { points: number[]; }
 export interface LineData { points: number[]; }
 export interface CircleData { x: number; y: number; radius: number; }
-export type ShapeData = RectData | PolygonData | LineData | CircleData;
+export interface TextData { x: number; y: number; text: string; fontSize: number; bold: boolean; italic: boolean; underline: boolean; strikethrough: boolean; fill: string; width: number; }
+export type ShapeData = RectData | PolygonData | LineData | CircleData | TextData;
 
 // Local canvas shape (before saving to server)
 export interface CanvasShape {
@@ -120,7 +121,7 @@ export interface CanvasShape {
 
 // ─── Tools ────────────────────────────────────────────────────────────────────
 
-export type ToolType = 'select' | 'pan' | 'rect' | 'polygon' | 'line' | 'circle' | 'calibrate' | 'eraser';
+export type ToolType = 'select' | 'pan' | 'rect' | 'polygon' | 'line' | 'circle' | 'calibrate' | 'eraser' | 'freeform' | 'count' | 'detect' | 'text' | 'freearea';
 
 export interface ToolConfig {
   id: ToolType;

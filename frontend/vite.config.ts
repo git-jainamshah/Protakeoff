@@ -10,17 +10,17 @@ export default defineConfig({
     },
   },
   optimizeDeps: {
-    include: ['pdfjs-dist'],
+    exclude: ['pdfjs-dist'],
   },
   server: {
     port: 5173,
     proxy: {
       '/api': {
-        target: 'http://localhost:5000',
+        target: 'http://localhost:3001',
         changeOrigin: true,
       },
       '/uploads': {
-        target: 'http://localhost:5000',
+        target: 'http://localhost:3001',
         changeOrigin: true,
       },
     },

@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation } from '@tanstack/react-query';
 import { cn, calcPolygonArea, calcLineLength, formatArea, formatLength } from '@/lib/utils';
 import { layersApi } from '@/lib/api';
 import type { Layer, CanvasShape } from '@/types';
 import {
   Eye, EyeOff, Plus, Trash2, ChevronDown, ChevronRight,
-  Square, Spline, Minus, Circle, MoreVertical
+  Square, Spline, Minus, Circle, PanelLeftClose, PanelLeftOpen, Layers,
 } from 'lucide-react';
 import { Modal } from '@/components/ui/Modal';
 import { Input } from '@/components/ui/Input';
@@ -24,17 +24,25 @@ interface Props {
   documentId: string;
 }
 
-const TYPE_COLORS = { AREA: 'text-green-400', LINEAR: 'text-blue-400', COUNT: 'text-yellow-400' };
-const LAYER_COLORS = ['#EF4444', '#22C55E', '#EAB308', '#3B82F6', '#8B5CF6', '#EC4899', '#F97316', '#14B8A6'];
+const TYPE_CHIP: Record<string, string> = {
+  AREA:   'bg-emerald-50 text-emerald-700 border-emerald-200',
+  LINEAR: 'bg-blue-50 text-blue-700 border-blue-200',
+  COUNT:  'bg-amber-50 text-amber-700 border-amber-200',
+};
+
+const LAYER_COLORS = [
+  '#EF4444','#22C55E','#EAB308','#3B82F6',
+  '#8B5CF6','#EC4899','#F97316','#14B8A6',
+];
 
 function shapeIcon(type: string) {
-  if (type === 'RECT') return <Square className="w-3 h-3" />;
+  if (type === 'RECT')    return <Square className="w-3 h-3" />;
   if (type === 'POLYGON') return <Spline className="w-3 h-3" />;
-  if (type === 'LINE') return <Minus className="w-3 h-3" />;
+  if (type === 'LINE')    return <Minus className="w-3 h-3" />;
   return <Circle className="w-3 h-3" />;
 }
 
-function getMeasurement(shape: CanvasShape, layer: Layer, scale: number, unit: string): string {
+function getMeasurement(shape: CanvasShape, layer: Layer, scale: number, unit: string) {
   if (layer.type === 'AREA') {
     if (shape.type === 'RECT') {
       const d = shape.data as { width: number; height: number };
@@ -45,39 +53,28 @@ function getMeasurement(shape: CanvasShape, layer: Layer, scale: number, unit: s
       return formatArea(calcPolygonArea(d.points), unit, scale);
     }
   }
-  if (layer.type === 'LINEAR') {
-    if (shape.type === 'LINE') {
-      const d = shape.data as { points: number[] };
-      return formatLength(calcLineLength(d.points), unit, scale);
-    }
+  if (layer.type === 'LINEAR' && shape.type === 'LINE') {
+    const d = shape.data as { points: number[] };
+    return formatLength(calcLineLength(d.points), unit, scale);
   }
   if (layer.type === 'COUNT') return 'qty';
   return '—';
 }
 
-function getLayerTotal(layer: Layer, shapes: CanvasShape[], scale: number, unit: string): string {
+function getLayerTotal(layer: Layer, shapes: CanvasShape[], scale: number, unit: string) {
   const ls = shapes.filter((s) => s.layerId === layer.id);
   if (layer.type === 'COUNT') return `${ls.length} qty`;
   if (layer.type === 'AREA') {
     const total = ls.reduce((sum, s) => {
-      if (s.type === 'RECT') {
-        const d = s.data as { width: number; height: number };
-        return sum + Math.abs(d.width) * Math.abs(d.height);
-      }
-      if (s.type === 'POLYGON') {
-        const d = s.data as { points: number[] };
-        return sum + calcPolygonArea(d.points);
-      }
+      if (s.type === 'RECT') { const d = s.data as { width: number; height: number }; return sum + Math.abs(d.width) * Math.abs(d.height); }
+      if (s.type === 'POLYGON') { const d = s.data as { points: number[] }; return sum + calcPolygonArea(d.points); }
       return sum;
     }, 0);
     return formatArea(total, unit, scale);
   }
   if (layer.type === 'LINEAR') {
     const total = ls.reduce((sum, s) => {
-      if (s.type === 'LINE') {
-        const d = s.data as { points: number[] };
-        return sum + calcLineLength(d.points);
-      }
+      if (s.type === 'LINE') { const d = s.data as { points: number[] }; return sum + calcLineLength(d.points); }
       return sum;
     }, 0);
     return formatLength(total, unit, scale);
@@ -85,13 +82,15 @@ function getLayerTotal(layer: Layer, shapes: CanvasShape[], scale: number, unit:
   return '—';
 }
 
-export default function LayerPanel({ layers, setLayers, activeLayerId, onSelectLayer, onToggleVisibility, shapes, scale, unit, documentId }: Props) {
-  const qc = useQueryClient();
-  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
-  const [addOpen, setAddOpen] = useState(false);
+export default function LayerPanel({
+  layers, setLayers, activeLayerId, onSelectLayer, onToggleVisibility, shapes, scale, unit, documentId,
+}: Props) {
+  const [panelOpen, setPanelOpen]     = useState(true);
+  const [collapsed, setCollapsed]     = useState<Record<string, boolean>>({});
+  const [addOpen, setAddOpen]         = useState(false);
   const [newLayerName, setNewLayerName] = useState('');
   const [newLayerColor, setNewLayerColor] = useState(LAYER_COLORS[0]);
-  const [newLayerType, setNewLayerType] = useState('AREA');
+  const [newLayerType, setNewLayerType]   = useState('AREA');
 
   const createMutation = useMutation({
     mutationFn: () => layersApi.create(documentId, { name: newLayerName, color: newLayerColor, type: newLayerType }),
@@ -112,71 +111,123 @@ export default function LayerPanel({ layers, setLayers, activeLayerId, onSelectL
     },
   });
 
-  const toggleLayer = (layerId: string) => {
-    setCollapsed((prev) => ({ ...prev, [layerId]: !prev[layerId] }));
-  };
-
-  return (
-    <div className="w-52 flex-shrink-0 flex flex-col bg-surface-sidebar border-r border-surface-border overflow-hidden">
-      <div className="flex items-center justify-between px-3 py-2.5 border-b border-surface-border">
-        <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Layers</span>
+  // ── Collapsed view — narrow icon strip ───────────────────────────────────────
+  if (!panelOpen) {
+    return (
+      <div className="w-10 flex-shrink-0 flex flex-col items-center bg-white border-r border-slate-200 py-2 gap-1">
         <button
-          onClick={() => setAddOpen(true)}
-          className="btn-ghost p-1 rounded"
+          onClick={() => setPanelOpen(true)}
+          title="Expand layers"
+          className="p-2 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+        >
+          <PanelLeftOpen className="w-4 h-4" />
+        </button>
+        <div className="w-px h-3 bg-slate-200 mx-auto my-0.5" />
+        {/* Layer color dots */}
+        {layers.map((l) => (
+          <button
+            key={l.id}
+            onClick={() => { setPanelOpen(true); onSelectLayer(l.id); }}
+            title={l.name}
+            className={cn(
+              'w-5 h-5 rounded-sm border-2 transition-transform hover:scale-110',
+              l.id === activeLayerId ? 'border-slate-600 scale-110' : 'border-transparent',
+            )}
+            style={{ backgroundColor: l.color }}
+          />
+        ))}
+        <button
+          onClick={() => { setPanelOpen(true); setAddOpen(true); }}
           title="Add layer"
+          className="mt-auto p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
         >
           <Plus className="w-3.5 h-3.5" />
         </button>
       </div>
+    );
+  }
 
+  return (
+    <div className="w-56 flex-shrink-0 flex flex-col bg-white border-r border-slate-200 overflow-hidden">
+      {/* Header */}
+      <div className="flex items-center justify-between px-3 py-2.5 border-b border-slate-100">
+        <div className="flex items-center gap-1.5">
+          <Layers className="w-3.5 h-3.5 text-slate-400" />
+          <span className="text-xs font-semibold text-slate-500 uppercase tracking-widest">Layers</span>
+        </div>
+        <div className="flex items-center gap-0.5">
+          <button
+            onClick={() => setAddOpen(true)}
+            className="btn-ghost p-1 rounded-lg" title="Add layer"
+          >
+            <Plus className="w-3.5 h-3.5" />
+          </button>
+          <button
+            onClick={() => setPanelOpen(false)}
+            className="btn-ghost p-1 rounded-lg" title="Collapse panel"
+          >
+            <PanelLeftClose className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </div>
+
+      {/* Layer list */}
       <div className="flex-1 overflow-y-auto py-1">
+        {layers.length === 0 && (
+          <p className="text-xs text-slate-400 text-center py-6 px-3">
+            No layers yet. Click + to add one.
+          </p>
+        )}
         {layers.map((layer) => {
-          const layerShapes = shapes.filter((s) => s.layerId === layer.id);
-          const isActive = layer.id === activeLayerId;
-          const isCollapsed = collapsed[layer.id];
+          const layerShapes  = shapes.filter((s) => s.layerId === layer.id);
+          const isActive     = layer.id === activeLayerId;
+          const isCollapsed  = collapsed[layer.id];
+          const isVisible    = layer.visible !== false;
 
           return (
             <div key={layer.id} className="group/layer">
               <div
                 className={cn(
-                  'flex items-center gap-1.5 px-2 py-1.5 cursor-pointer transition-colors select-none',
-                  isActive ? 'bg-brand-950/40 border-l-2 border-brand-500' : 'hover:bg-surface-hover border-l-2 border-transparent'
+                  'flex items-center gap-1.5 px-2 py-2 cursor-pointer transition-colors select-none border-l-2',
+                  isActive
+                    ? 'bg-brand-50 border-brand-500'
+                    : 'hover:bg-slate-50 border-transparent',
                 )}
                 onClick={() => onSelectLayer(layer.id)}
               >
                 <button
-                  onClick={(e) => { e.stopPropagation(); toggleLayer(layer.id); }}
-                  className="text-slate-600 hover:text-slate-400 flex-shrink-0"
+                  onClick={(e) => { e.stopPropagation(); setCollapsed((p) => ({ ...p, [layer.id]: !p[layer.id] })); }}
+                  className="text-slate-400 hover:text-slate-600 flex-shrink-0"
                 >
                   {isCollapsed ? <ChevronRight className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
                 </button>
 
-                <div
-                  className="w-2.5 h-2.5 rounded-sm flex-shrink-0"
-                  style={{ backgroundColor: layer.color }}
-                />
+                <div className="w-3 h-3 rounded-sm flex-shrink-0" style={{ backgroundColor: layer.color }} />
 
                 <div className="flex-1 min-w-0">
-                  <p className={cn('text-[11px] font-medium truncate leading-tight', isActive ? 'text-slate-100' : 'text-slate-400')}>
+                  <p className={cn('text-xs font-semibold truncate', isActive ? 'text-brand-700' : 'text-slate-700')}>
                     {layer.name}
                   </p>
-                  <p className={cn('text-[10px] leading-none mt-0.5', TYPE_COLORS[layer.type as keyof typeof TYPE_COLORS] || 'text-slate-600')}>
-                    {getLayerTotal(layer, shapes, scale, unit)}
-                  </p>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <span className={cn('text-[9px] font-semibold border rounded px-1 py-px', TYPE_CHIP[layer.type] || 'bg-slate-50 text-slate-500 border-slate-200')}>
+                      {layer.type}
+                    </span>
+                    <span className="text-[10px] text-slate-500 truncate font-medium">
+                      {getLayerTotal(layer, shapes, scale, unit)}
+                    </span>
+                  </div>
                 </div>
 
                 <div className="flex items-center gap-0.5 opacity-0 group-hover/layer:opacity-100 transition-opacity flex-shrink-0">
                   <button
                     onClick={(e) => { e.stopPropagation(); onToggleVisibility(layer.id); }}
-                    className="p-0.5 rounded text-slate-500 hover:text-slate-300"
-                    title="Toggle visibility"
+                    className={cn('p-0.5 rounded hover:text-slate-600', isVisible ? 'text-slate-400' : 'text-slate-300')}
                   >
-                    {layer.visible !== false ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
+                    {isVisible ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
                   </button>
                   <button
                     onClick={(e) => { e.stopPropagation(); if (confirm('Delete layer?')) deleteMutation.mutate(layer.id); }}
-                    className="p-0.5 rounded text-slate-500 hover:text-red-400"
-                    title="Delete layer"
+                    className="p-0.5 rounded text-slate-400 hover:text-red-500"
                   >
                     <Trash2 className="w-3 h-3" />
                   </button>
@@ -184,17 +235,15 @@ export default function LayerPanel({ layers, setLayers, activeLayerId, onSelectL
               </div>
 
               {!isCollapsed && layerShapes.length > 0 && (
-                <div className="pl-6 pb-1">
+                <div className="pl-8 pb-1 border-l-2 border-transparent ml-2">
                   {layerShapes.map((shape, idx) => (
-                    <div
-                      key={shape.id}
-                      className="flex items-center gap-1.5 px-2 py-1 rounded text-slate-600 hover:text-slate-400 hover:bg-surface-hover cursor-pointer transition-colors"
-                    >
-                      <span className="flex-shrink-0">{shapeIcon(shape.type)}</span>
+                    <div key={shape.id}
+                      className="flex items-center gap-1.5 px-2 py-1 rounded-md text-slate-500 hover:text-slate-700 hover:bg-slate-50 cursor-pointer transition-colors">
+                      <span className="flex-shrink-0 text-slate-400">{shapeIcon(shape.type)}</span>
                       <span className="flex-1 text-[10px] truncate">
                         {shape.label || `${shape.type.charAt(0) + shape.type.slice(1).toLowerCase()} ${idx + 1}`}
                       </span>
-                      <span className="text-[9px] text-slate-700">
+                      <span className="text-[9px] text-slate-400 font-mono">
                         {getMeasurement(shape, layer, scale, unit)}
                       </span>
                     </div>
@@ -216,12 +265,14 @@ export default function LayerPanel({ layers, setLayers, activeLayerId, onSelectL
             onChange={(e) => setNewLayerName(e.target.value)}
           />
           <div>
-            <label className="block text-xs font-medium text-slate-400 mb-1.5">Type</label>
+            <label className="block text-sm font-medium text-slate-700 mb-2">Type</label>
             <div className="grid grid-cols-3 gap-2">
               {['AREA', 'LINEAR', 'COUNT'].map((t) => (
                 <button key={t} onClick={() => setNewLayerType(t)}
-                  className={cn('py-2 rounded-md text-xs font-medium border transition-colors',
-                    newLayerType === t ? 'bg-brand-600 border-brand-600 text-white' : 'bg-surface-card border-surface-border text-slate-400 hover:border-slate-500'
+                  className={cn('py-2 rounded-lg text-sm font-semibold border transition-colors',
+                    newLayerType === t
+                      ? 'bg-brand-600 border-brand-600 text-white'
+                      : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300',
                   )}>
                   {t}
                 </button>
@@ -229,13 +280,14 @@ export default function LayerPanel({ layers, setLayers, activeLayerId, onSelectL
             </div>
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-400 mb-1.5">Color</label>
+            <label className="block text-sm font-medium text-slate-700 mb-2">Colour</label>
             <div className="flex gap-2 flex-wrap">
               {LAYER_COLORS.map((c) => (
                 <button
                   key={c}
                   onClick={() => setNewLayerColor(c)}
-                  className={cn('w-6 h-6 rounded-md transition-transform', newLayerColor === c && 'scale-125 ring-2 ring-white/30')}
+                  className={cn('w-7 h-7 rounded-lg transition-transform border-2',
+                    newLayerColor === c ? 'scale-125 border-slate-600' : 'border-transparent')}
                   style={{ backgroundColor: c }}
                 />
               ))}
@@ -243,7 +295,8 @@ export default function LayerPanel({ layers, setLayers, activeLayerId, onSelectL
           </div>
           <div className="flex gap-3">
             <Button variant="secondary" className="flex-1" onClick={() => setAddOpen(false)}>Cancel</Button>
-            <Button className="flex-1" loading={createMutation.isPending} onClick={() => createMutation.mutate()} disabled={!newLayerName.trim()}>
+            <Button className="flex-1" loading={createMutation.isPending}
+              onClick={() => createMutation.mutate()} disabled={!newLayerName.trim()}>
               Add Layer
             </Button>
           </div>

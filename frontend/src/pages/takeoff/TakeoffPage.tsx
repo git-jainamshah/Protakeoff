@@ -1,33 +1,62 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { documentsApi, layersApi, shapesApi } from '@/lib/api';
+import { documentsApi, shapesApi } from '@/lib/api';
 import type { Layer, CanvasShape, ToolType, Document } from '@/types';
-import { generateId } from '@/lib/utils';
+import { generateId, calcPolygonArea, calcLineLength, formatArea, formatLength } from '@/lib/utils';
 import TakeoffHeader from './components/TakeoffHeader';
 import TakeoffToolbar from './components/TakeoffToolbar';
 import LayerPanel from './components/LayerPanel';
 import TakeoffCanvas from './components/TakeoffCanvas';
 import EstimatePanel from './components/EstimatePanel';
 import { PageLoader } from '@/components/ui/Spinner';
+import { Undo2, Redo2, Trash2 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import toast from 'react-hot-toast';
 
 export type ActiveTab = 'takeoff' | 'estimate';
+
+// ─── Quick metrics helper ─────────────────────────────────────────────────────
+function computeMetrics(shapes: CanvasShape[], layers: Layer[], scale: number, unit: string) {
+  let totalArea = 0, totalLinear = 0, count = 0;
+  shapes.forEach((s) => {
+    const layer = layers.find((l) => l.id === s.layerId);
+    if (!layer) return;
+    count++;
+    if (layer.type === 'AREA') {
+      if (s.type === 'RECT') { const d = s.data as { width: number; height: number }; totalArea += Math.abs(d.width) * Math.abs(d.height); }
+      if (s.type === 'POLYGON') { const d = s.data as { points: number[] }; totalArea += calcPolygonArea(d.points); }
+    }
+    if (layer.type === 'LINEAR' && s.type === 'LINE') {
+      const d = s.data as { points: number[] }; totalLinear += calcLineLength(d.points);
+    }
+  });
+  return {
+    area: formatArea(totalArea, unit, scale),
+    linear: formatLength(totalLinear, unit, scale),
+    count,
+  };
+}
 
 export default function TakeoffPage() {
   const { projectId, documentId } = useParams<{ projectId: string; documentId: string }>();
   const navigate = useNavigate();
 
-  const [activeTab, setActiveTab] = useState<ActiveTab>('takeoff');
-  const [activeTool, setActiveTool] = useState<ToolType>('select');
+  const [activeTab,     setActiveTab]     = useState<ActiveTab>('takeoff');
+  const [activeTool,    setActiveTool]    = useState<ToolType>('pan');
   const [activeLayerId, setActiveLayerId] = useState<string | null>(null);
-  const [layers, setLayers] = useState<Layer[]>([]);
-  const [shapes, setShapes] = useState<CanvasShape[]>([]);
-  const [history, setHistory] = useState<CanvasShape[][]>([]);
-  const [historyIndex, setHistoryIndex] = useState(-1);
-  const [scale, setScale] = useState(1.0);
-  const [unit, setUnit] = useState('ft');
-  const [isSaving, setIsSaving] = useState(false);
+  const [layers,        setLayers]        = useState<Layer[]>([]);
+  const [shapes,        setShapes]        = useState<CanvasShape[]>([]);
+  const [selectedShapeId, setSelectedShapeId] = useState<string | null>(null);
+
+  // History (refs — no stale closure issue)
+  const historyRef      = useRef<CanvasShape[][]>([[]]);
+  const historyIndexRef = useRef<number>(0);
+  const [historyState,  setHistoryState]  = useState({ index: 0, length: 1 });
+
+  const [scale,     setScale]    = useState(1.0);
+  const [unit,      setUnit]     = useState('ft');
+  const [isSaving,  setIsSaving] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -38,197 +67,200 @@ export default function TakeoffPage() {
   });
 
   const saveMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (s: CanvasShape[]) => {
       if (!layers.length) return;
       setIsSaving(true);
       await Promise.all(
-        layers.map((layer) => {
-          const layerShapes = shapes.filter((s) => s.layerId === layer.id);
-          return shapesApi.batchSave(layer.id, layerShapes.map((s) => ({
-            type: s.type,
-            data: s.data,
-            label: s.label,
-            color: s.color,
-          })));
-        })
+        layers.map((l) => {
+          const ls = s.filter((x) => x.layerId === l.id);
+          return shapesApi.batchSave(l.id, ls.map((x) => ({ type: x.type, data: x.data, label: x.label, color: x.color })));
+        }),
       );
     },
-    onSuccess: () => { toast.success('Saved', { duration: 1500 }); },
+    onSuccess: () => toast.success('Saved', { duration: 1500, id: 'autosave' }),
     onSettled: () => setIsSaving(false),
   });
 
-  // Load layers + shapes from document
   useEffect(() => {
     if (!document) return;
     setScale(document.scale || 1.0);
     setUnit(document.unit || 'ft');
-
-    const docLayers: Layer[] = document.layers || [];
+    const docLayers = document.layers || [];
     setLayers(docLayers);
-    if (docLayers.length > 0 && !activeLayerId) {
-      setActiveLayerId(docLayers[0].id);
-    }
-
-    const allShapes: CanvasShape[] = docLayers.flatMap((l) =>
+    if (docLayers.length > 0) setActiveLayerId((p) => p || docLayers[0].id);
+    const all: CanvasShape[] = docLayers.flatMap((l) =>
       (l.shapes || []).map((s) => ({
-        id: s.id,
-        type: s.type,
+        id: s.id, type: s.type,
         data: typeof s.data === 'string' ? JSON.parse(s.data) : s.data,
-        label: s.label || undefined,
-        color: s.color || undefined,
-        layerId: s.layerId,
-      }))
+        label: s.label || undefined, color: s.color || undefined, layerId: s.layerId,
+      })),
     );
-    setShapes(allShapes);
-    setHistory([allShapes]);
-    setHistoryIndex(0);
+    setShapes(all);
+    historyRef.current = [all]; historyIndexRef.current = 0; setHistoryState({ index: 0, length: 1 });
   }, [document]);
 
-  // Auto-save debounced
-  useEffect(() => {
+  const triggerAutoSave = useCallback((latest: CanvasShape[]) => {
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = setTimeout(() => {
-      if (historyIndex > 0) saveMutation.mutate();
-    }, 3000);
-    return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
-  }, [shapes]);
+    saveTimerRef.current = setTimeout(() => saveMutation.mutate(latest), 3000);
+  }, []); // eslint-disable-line
 
   const pushHistory = useCallback((newShapes: CanvasShape[]) => {
+    const idx = historyIndexRef.current;
+    const trimmed = historyRef.current.slice(0, idx + 1);
+    trimmed.push(newShapes);
+    if (trimmed.length > 50) trimmed.shift();
+    historyRef.current = trimmed;
+    const ni = trimmed.length - 1;
+    historyIndexRef.current = ni;
     setShapes(newShapes);
-    setHistory((prev) => {
-      const trimmed = prev.slice(0, historyIndex + 1);
-      return [...trimmed, newShapes].slice(-50);
-    });
-    setHistoryIndex((i) => Math.min(i + 1, 49));
-  }, [historyIndex]);
+    setHistoryState({ index: ni, length: trimmed.length });
+    triggerAutoSave(newShapes);
+  }, [triggerAutoSave]);
 
   const undo = useCallback(() => {
-    if (historyIndex <= 0) return;
-    const newIdx = historyIndex - 1;
-    setHistoryIndex(newIdx);
-    setShapes(history[newIdx]);
-  }, [history, historyIndex]);
-
-  const redo = useCallback(() => {
-    if (historyIndex >= history.length - 1) return;
-    const newIdx = historyIndex + 1;
-    setHistoryIndex(newIdx);
-    setShapes(history[newIdx]);
-  }, [history, historyIndex]);
-
-  const addShape = useCallback((shape: Omit<CanvasShape, 'id'>) => {
-    const newShape: CanvasShape = { ...shape, id: generateId() };
-    pushHistory([...shapes, newShape]);
-  }, [shapes, pushHistory]);
-
-  const updateShape = useCallback((id: string, updates: Partial<CanvasShape>) => {
-    pushHistory(shapes.map((s) => s.id === id ? { ...s, ...updates } : s));
-  }, [shapes, pushHistory]);
-
-  const deleteShape = useCallback((id: string) => {
-    pushHistory(shapes.filter((s) => s.id !== id));
-  }, [shapes, pushHistory]);
-
-  const toggleLayerVisibility = useCallback((layerId: string) => {
-    setLayers((prev) => prev.map((l) => l.id === layerId ? { ...l, visible: !l.visible } : l));
+    const idx = historyIndexRef.current;
+    if (idx <= 0) return;
+    const ni = idx - 1;
+    historyIndexRef.current = ni;
+    setShapes(historyRef.current[ni]); setSelectedShapeId(null);
+    setHistoryState({ index: ni, length: historyRef.current.length });
   }, []);
 
-  const handleSave = () => saveMutation.mutate();
+  const redo = useCallback(() => {
+    const idx = historyIndexRef.current;
+    if (idx >= historyRef.current.length - 1) return;
+    const ni = idx + 1;
+    historyIndexRef.current = ni;
+    setShapes(historyRef.current[ni]); setSelectedShapeId(null);
+    setHistoryState({ index: ni, length: historyRef.current.length });
+  }, []);
+
+  const addShape = useCallback((shape: Omit<CanvasShape, 'id'>) =>
+    pushHistory([...historyRef.current[historyIndexRef.current], { ...shape, id: generateId() }]), [pushHistory]);
+
+  const updateShape = useCallback((id: string, updates: Partial<CanvasShape>) =>
+    pushHistory(historyRef.current[historyIndexRef.current].map((s) => s.id === id ? { ...s, ...updates } : s)), [pushHistory]);
+
+  const deleteShape = useCallback((id: string) => {
+    pushHistory(historyRef.current[historyIndexRef.current].filter((s) => s.id !== id));
+    setSelectedShapeId((p) => p === id ? null : p);
+  }, [pushHistory]);
+
+  const deleteSelected = useCallback(() => { if (selectedShapeId) deleteShape(selectedShapeId); }, [selectedShapeId, deleteShape]);
+
+  const handleSave = useCallback(() => {
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveMutation.mutate(historyRef.current[historyIndexRef.current]);
+  }, [saveMutation]);
+
+  const toggleLayerVisibility = useCallback((id: string) =>
+    setLayers((p) => p.map((l) => l.id === id ? { ...l, visible: !l.visible } : l)), []);
 
   // Keyboard shortcuts
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+    const h = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      const isMac = navigator.platform.includes('Mac');
+      const mod = isMac ? e.metaKey : e.ctrlKey;
       const key = e.key.toLowerCase();
-      if ((e.metaKey || e.ctrlKey) && key === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
-      if ((e.metaKey || e.ctrlKey) && key === 's') { e.preventDefault(); handleSave(); return; }
-      const toolMap: Record<string, ToolType> = { v: 'select', h: 'pan', r: 'rect', p: 'polygon', l: 'line', c: 'circle', m: 'calibrate' };
-      if (toolMap[key]) setActiveTool(toolMap[key]);
-      if (key === 'delete' || key === 'backspace') {
-        // Delete handled in canvas
-      }
+      if (mod && key === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
+      if (mod && (key === 'y')) { e.preventDefault(); redo(); return; }
+      if (mod && key === 's') { e.preventDefault(); handleSave(); return; }
+      if ((e.key === 'Delete' || e.key === 'Backspace') && !mod) { e.preventDefault(); deleteSelected(); return; }
+      const toolMap: Record<string, ToolType> = {
+        v: 'select', h: 'pan', r: 'rect', p: 'polygon', l: 'line',
+        c: 'circle', m: 'calibrate', e: 'eraser', f: 'freeform', n: 'count',
+        d: 'detect', t: 'text', a: 'freearea',
+      };
+      if (!mod && toolMap[key]) setActiveTool(toolMap[key]);
     };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [undo, redo]);
+    window.addEventListener('keydown', h);
+    return () => window.removeEventListener('keydown', h);
+  }, [undo, redo, handleSave, deleteSelected]);
+
+  // Quick metrics
+  const metrics = useMemo(
+    () => computeMetrics(shapes, layers, scale, unit),
+    [shapes, layers, scale, unit],
+  );
 
   if (isLoading) return <PageLoader label="Loading document..." />;
-  if (!document) return <div className="h-full flex items-center justify-center text-slate-400">Document not found</div>;
+  if (!document) return <div className="h-full flex items-center justify-center text-slate-500">Document not found</div>;
 
-  const activeLayer = layers.find((l) => l.id === activeLayerId);
-  const visibleShapes = shapes.filter((s) => {
-    const layer = layers.find((l) => l.id === s.layerId);
-    return layer?.visible !== false;
-  });
+  const activeLayer   = layers.find((l) => l.id === activeLayerId);
+  const visibleShapes = shapes.filter((s) => layers.find((l) => l.id === s.layerId)?.visible !== false);
+  const canUndo = historyState.index > 0;
+  const canRedo = historyState.index < historyState.length - 1;
 
   return (
     <div className="h-screen flex flex-col bg-surface overflow-hidden">
       <TakeoffHeader
-        document={document}
-        projectId={projectId!}
-        activeTab={activeTab}
-        onTabChange={setActiveTab}
-        canUndo={historyIndex > 0}
-        canRedo={historyIndex < history.length - 1}
-        onUndo={undo}
-        onRedo={redo}
-        onSave={handleSave}
-        isSaving={isSaving}
-        scale={scale}
-        unit={unit}
-        onScaleChange={setScale}
-        onUnitChange={setUnit}
-        currentPage={currentPage}
-        totalPages={document.pageCount}
+        document={document} projectId={projectId!}
+        activeTab={activeTab} onTabChange={setActiveTab}
+        canUndo={canUndo} canRedo={canRedo} onUndo={undo} onRedo={redo}
+        onSave={handleSave} isSaving={isSaving}
+        scale={scale} unit={unit} onScaleChange={setScale} onUnitChange={setUnit}
+        currentPage={currentPage} totalPages={document.pageCount}
         onPageChange={setCurrentPage}
         onBack={() => navigate(`/projects/${projectId}`)}
       />
 
       {activeTab === 'takeoff' ? (
         <div className="flex flex-1 overflow-hidden">
+          {/* Layers panel */}
           <LayerPanel
-            layers={layers}
-            setLayers={setLayers}
-            activeLayerId={activeLayerId}
-            onSelectLayer={setActiveLayerId}
+            layers={layers} setLayers={setLayers}
+            activeLayerId={activeLayerId} onSelectLayer={setActiveLayerId}
             onToggleVisibility={toggleLayerVisibility}
-            shapes={shapes}
-            scale={scale}
-            unit={unit}
-            documentId={documentId!}
+            shapes={shapes} scale={scale} unit={unit} documentId={documentId!}
           />
 
-          <div className="flex-1 relative overflow-hidden bg-[#1a1a2e]">
+          {/* Canvas container — all overlays live here */}
+          <div className="flex-1 relative overflow-hidden">
             <TakeoffCanvas
               documentUrl={document.fileUrl}
               activeTool={activeTool}
               activeLayerId={activeLayerId}
               activeLayerColor={activeLayer?.color || '#2563EB'}
               shapes={visibleShapes}
-              allShapes={shapes}
+              selectedShapeId={selectedShapeId}
+              onSelectShape={setSelectedShapeId}
               onAddShape={addShape}
               onUpdateShape={updateShape}
               onDeleteShape={deleteShape}
-              scale={scale}
-              unit={unit}
-              onScaleChange={setScale}
+              onPageChange={setCurrentPage}
+              scale={scale} unit={unit} onScaleChange={setScale}
               currentPage={currentPage}
+              metrics={metrics}
             />
-          </div>
 
-          <TakeoffToolbar
-            activeTool={activeTool}
-            onToolChange={setActiveTool}
-          />
+            {/* ── Floating bottom toolbar ── */}
+            <div className="absolute bottom-14 left-1/2 -translate-x-1/2 z-30">
+              <TakeoffToolbar activeTool={activeTool} onToolChange={setActiveTool} />
+            </div>
+
+            {/* ── Undo / Redo / Delete overlay (top-left of canvas) ── */}
+            <div className="absolute top-3 left-3 z-20 flex items-center gap-1 bg-white/90 backdrop-blur-sm border border-slate-200 rounded-xl px-2 py-1.5 shadow-sm">
+              <button onClick={undo} disabled={!canUndo}
+                title="Undo (⌘Z)" className={cn('p-1.5 rounded-lg transition-colors', canUndo ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-100' : 'text-slate-300 cursor-not-allowed')}>
+                <Undo2 className="w-4 h-4" />
+              </button>
+              <button onClick={redo} disabled={!canRedo}
+                title="Redo (⌘⇧Z)" className={cn('p-1.5 rounded-lg transition-colors', canRedo ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-100' : 'text-slate-300 cursor-not-allowed')}>
+                <Redo2 className="w-4 h-4" />
+              </button>
+              <div className="w-px h-5 bg-slate-200 mx-0.5" />
+              <button onClick={deleteSelected} disabled={!selectedShapeId}
+                title="Delete selected (Del)" className={cn('p-1.5 rounded-lg transition-colors', selectedShapeId ? 'text-red-500 hover:text-red-600 hover:bg-red-50' : 'text-slate-300 cursor-not-allowed')}>
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </div>
+
+          </div>
         </div>
       ) : (
-        <EstimatePanel
-          layers={layers}
-          shapes={shapes}
-          scale={scale}
-          unit={unit}
-          documentName={document.name}
-        />
+        <EstimatePanel layers={layers} shapes={shapes} scale={scale} unit={unit} documentName={document.name} />
       )}
     </div>
   );
