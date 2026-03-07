@@ -283,7 +283,7 @@ function ShapeItem({
 }: {
   shape: CanvasShape; isSelected: boolean; activeTool: ToolType;
   isDraggable: boolean; scale: number; unit: string;
-  onSelect: (id: string) => void; onDelete: (id: string) => void;
+  onSelect: (id: string, additive?: boolean) => void; onDelete: (id: string) => void;
   onUpdateShape: (id: string, updates: Partial<CanvasShape>) => void;
   onRename: (id: string) => void;
 }) {
@@ -296,9 +296,8 @@ function ShapeItem({
   const click = (e: KonvaEventObject<MouseEvent>) => {
     e.cancelBubble = true;
     if (activeTool === 'eraser') { onDelete(shape.id); return; }
-    // If already selected → open rename immediately (single-click to edit label)
-    if (isSelected && activeTool === 'select') { onRename(shape.id); return; }
-    onSelect(shape.id);
+    const additive = e.evt.metaKey || e.evt.ctrlKey || e.evt.shiftKey;
+    onSelect(shape.id, additive);
   };
   const dblClick = (e: KonvaEventObject<MouseEvent>) => {
     e.cancelBubble = true;
@@ -525,8 +524,9 @@ interface Props {
   activeLayerId: string | null;
   activeLayerColor: string;
   shapes: CanvasShape[];
-  selectedShapeId: string | null;
-  onSelectShape: (id: string | null) => void;
+  selectedShapeIds: string[];
+  onSelectShape: (id: string | null, additive?: boolean) => void;
+  onSelectMany: (ids: string[]) => void;
   onAddShape: (shape: Omit<CanvasShape, 'id'>) => void;
   onUpdateShape: (id: string, updates: Partial<CanvasShape>) => void;
   onDeleteShape: (id: string) => void;
@@ -535,6 +535,32 @@ interface Props {
   scale: number; unit: string; onScaleChange: (s: number) => void;
   currentPage: number;
   metrics?: { area: string; linear: string; count: number };
+}
+
+// ─── Drag-select hit test ─────────────────────────────────────────────────────
+function shapeIntersectsRect(shape: CanvasShape, rx: number, ry: number, rw: number, rh: number): boolean {
+  const inBox = (x: number, y: number) => x >= rx && x <= rx + rw && y >= ry && y <= ry + rh;
+  if (shape.type === 'RECT') {
+    const d = shape.data as RectData;
+    const sx = Math.min(d.x, d.x + d.width), sw = Math.abs(d.width);
+    const sy = Math.min(d.y, d.y + d.height), sh = Math.abs(d.height);
+    return sx < rx + rw && sx + sw > rx && sy < ry + rh && sy + sh > ry;
+  }
+  if (shape.type === 'CIRCLE') {
+    const d = shape.data as CircleData;
+    return inBox(d.x, d.y);
+  }
+  if (shape.type === 'LINE' || shape.type === 'POLYGON') {
+    const d = shape.data as LineData | PolygonData;
+    for (let i = 0; i < d.points.length; i += 2) {
+      if (inBox(d.points[i], d.points[i + 1])) return true;
+    }
+  }
+  if (shape.type === 'TEXT') {
+    const d = shape.data as TextData;
+    return inBox(d.x, d.y);
+  }
+  return false;
 }
 
 // ─── Rename Shape Modal ───────────────────────────────────────────────────────
@@ -582,7 +608,7 @@ function RenameShapeModal({ shape, onCommit, onCancel }: {
 // ─── Main canvas ──────────────────────────────────────────────────────────────
 export default function TakeoffCanvas({
   documentUrl, activeTool, activeLayerId, activeLayerColor,
-  shapes, selectedShapeId, onSelectShape, onAddShape, onUpdateShape, onDeleteShape,
+  shapes, selectedShapeIds, onSelectShape, onSelectMany, onAddShape, onUpdateShape, onDeleteShape,
   onRenameShape, onPageChange, scale, unit, onScaleChange, currentPage, metrics,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -624,10 +650,10 @@ export default function TakeoffCanvas({
 
   // ── External rename trigger from toolbar Pencil button ──────────────────────
   useEffect(() => {
-    const handler = () => { if (selectedShapeId) setRenamingShapeId(selectedShapeId); };
+    const handler = () => { if (selectedShapeIds.length === 1) setRenamingShapeId(selectedShapeIds[0]); };
     window.addEventListener('pt:rename-selected', handler as EventListener);
     return () => window.removeEventListener('pt:rename-selected', handler as EventListener);
-  }, [selectedShapeId]);
+  }, [selectedShapeIds]);
   const isPanning = activeTool === 'pan' || spaceDown;
 
   // ── Drawing state ──────────────────────────────────────────────────────────
@@ -648,6 +674,9 @@ export default function TakeoffCanvas({
   const [detectPreview, setDetectPreview] = useState<RectData | null>(null);
   const [textEdit,      setTextEdit]      = useState<TextEditState | null>(null);
   const [renamingShapeId, setRenamingShapeId] = useState<string | null>(null);
+  // Drag-select box
+  const [dragSel, setDragSel] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
+  const dragStartRef = useRef<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
     setIsDrawing(false); setCurrentRect(null); setCurrentLine(null); setCurrentCircle(null);
@@ -662,6 +691,7 @@ export default function TakeoffCanvas({
       setIsDrawing(false); setIsFreeforming(false); setIsFreeArea(false);
       setCurrentRect(null); setCurrentLine(null); setCurrentCircle(null);
       setFreeformPts([]); setFreearePts([]);
+      setDragSel(null); dragStartRef.current = null;
       onSelectShape(null);
     };
     window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k);
@@ -703,7 +733,14 @@ export default function TakeoffCanvas({
     if (isPanning) return;
     const pos = getPos();
 
-    if (activeTool === 'select') { if (e.target === e.target.getStage()) onSelectShape(null); return; }
+    if (activeTool === 'select') {
+      if (e.target === e.target.getStage()) {
+        // Start drag-select; deselect only confirmed on mouseup if no drag
+        dragStartRef.current = pos;
+        setDragSel({ x: pos.x, y: pos.y, w: 0, h: 0 });
+      }
+      return;
+    }
     if (activeTool === 'eraser') return;
     if (activeTool === 'polygon') { setPolygonPts(p => [...p, pos.x, pos.y]); return; }
 
@@ -738,6 +775,11 @@ export default function TakeoffCanvas({
     const pos = getPos(); setMousePos(pos);
     if (isFreeforming) { setFreeformPts(p => [...p, pos.x, pos.y]); return; }
     if (isFreeArea)    { setFreearePts(p => [...p, pos.x, pos.y]); return; }
+    if (dragStartRef.current && activeTool === 'select') {
+      const ds = dragStartRef.current;
+      setDragSel({ x: Math.min(pos.x, ds.x), y: Math.min(pos.y, ds.y), w: Math.abs(pos.x - ds.x), h: Math.abs(pos.y - ds.y) });
+      return;
+    }
     if (!isDrawing) return;
     if (activeTool === 'rect')   setCurrentRect({ x:drawStart.x, y:drawStart.y, width:pos.x-drawStart.x, height:pos.y-drawStart.y });
     if (activeTool === 'line')   setCurrentLine({ points:[drawStart.x, drawStart.y, pos.x, pos.y] });
@@ -745,6 +787,22 @@ export default function TakeoffCanvas({
   };
 
   const handleMouseUp = () => {
+    // Commit drag-select
+    if (dragStartRef.current) {
+      const ds = dragSel;
+      dragStartRef.current = null;
+      setDragSel(null);
+      if (ds && (ds.w > 6 || ds.h > 6)) {
+        // Real drag → select contained shapes
+        const hit = shapes.filter(s => shapeIntersectsRect(s, ds.x, ds.y, ds.w, ds.h));
+        if (hit.length > 0) onSelectMany(hit.map(s => s.id));
+        else onSelectShape(null);
+      } else {
+        // Just a click on empty canvas → deselect
+        onSelectShape(null);
+      }
+      return;
+    }
     if (!activeLayerId) { setIsDrawing(false); setIsFreeforming(false); setIsFreeArea(false); return; }
     const MIN = 5;
     if (isFreeforming && freeformPts.length >= 6)
@@ -817,7 +875,9 @@ export default function TakeoffCanvas({
   const zoomPct  = Math.round(dispScale * 100);
   const isDraggableShape = activeTool === 'select';
 
-  const selectedShape = shapes.find(s => s.id === selectedShapeId) ?? null;
+  // For single-select operations (edit handles, rename)
+  const selectedShapeId = selectedShapeIds.length === 1 ? selectedShapeIds[0] : null;
+  const selectedShape = selectedShapeId ? (shapes.find(s => s.id === selectedShapeId) ?? null) : null;
 
   return (
     <div ref={containerRef} className="w-full h-full relative bg-[#ECF0F5]"
@@ -955,12 +1015,19 @@ export default function TakeoffCanvas({
         {/* Shapes + handles */}
         <Layer>
           {shapes.map(s => (
-            <ShapeItem key={s.id} shape={s} isSelected={selectedShapeId===s.id}
+            <ShapeItem key={s.id} shape={s} isSelected={selectedShapeIds.includes(s.id)}
               activeTool={activeTool} isDraggable={isDraggableShape}
               scale={scale} unit={unit}
               onSelect={onSelectShape} onDelete={onDeleteShape} onUpdateShape={onUpdateShape}
               onRename={(id) => setRenamingShapeId(id)} />
           ))}
+          {/* Drag-select rectangle */}
+          {dragSel && dragSel.w > 2 && dragSel.h > 2 && (
+            <Rect x={dragSel.x} y={dragSel.y} width={dragSel.w} height={dragSel.h}
+              fill="rgba(59,130,246,0.07)" stroke="#3B82F6"
+              strokeWidth={1 / dispScale} dash={[4 / dispScale, 3 / dispScale]}
+              listening={false} />
+          )}
 
           {/* Edit handles for selected shape */}
           {selectedShape && activeTool === 'select' && (

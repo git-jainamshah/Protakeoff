@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { cn, calcPolygonArea, calcLineLength, formatArea, formatLength } from '@/lib/utils';
 import { layersApi } from '@/lib/api';
 import type { Layer, CanvasShape } from '@/types';
 import {
   Eye, EyeOff, Plus, Trash2, ChevronDown, ChevronRight,
-  Square, Spline, Minus, Circle, PanelLeftClose, PanelLeftOpen, Layers,
+  Square, Spline, Minus, Circle, PanelLeftClose, PanelLeftOpen, Layers, Check, X,
 } from 'lucide-react';
 import { Modal } from '@/components/ui/Modal';
 import { Input } from '@/components/ui/Input';
@@ -22,6 +22,7 @@ interface Props {
   scale: number;
   unit: string;
   documentId: string;
+  onNavigateToPage: (page: number) => void;
 }
 
 const TYPE_CHIP: Record<string, string> = {
@@ -83,7 +84,7 @@ function getLayerTotal(layer: Layer, shapes: CanvasShape[], scale: number, unit:
 }
 
 export default function LayerPanel({
-  layers, setLayers, activeLayerId, onSelectLayer, onToggleVisibility, shapes, scale, unit, documentId,
+  layers, setLayers, activeLayerId, onSelectLayer, onToggleVisibility, shapes, scale, unit, documentId, onNavigateToPage,
 }: Props) {
   const [panelOpen, setPanelOpen]     = useState(true);
   const [collapsed, setCollapsed]     = useState<Record<string, boolean>>({});
@@ -91,6 +92,10 @@ export default function LayerPanel({
   const [newLayerName, setNewLayerName] = useState('');
   const [newLayerColor, setNewLayerColor] = useState(LAYER_COLORS[0]);
   const [newLayerType, setNewLayerType]   = useState('AREA');
+  // Layer renaming
+  const [renamingLayerId, setRenamingLayerId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState('');
+  const renameInputRef = useRef<HTMLInputElement>(null);
 
   const createMutation = useMutation({
     mutationFn: () => layersApi.create(documentId, { name: newLayerName, color: newLayerColor, type: newLayerType }),
@@ -110,6 +115,19 @@ export default function LayerPanel({
       toast.success('Layer deleted');
     },
   });
+
+  const renameMutation = useMutation({
+    mutationFn: ({ id, name }: { id: string; name: string }) => layersApi.update(id, { name }),
+    onSuccess: (_, { id, name }) => {
+      setLayers((prev) => prev.map((l) => l.id === id ? { ...l, name } : l));
+      setRenamingLayerId(null);
+    },
+  });
+
+  const commitRename = () => {
+    if (!renamingLayerId || !renameValue.trim()) { setRenamingLayerId(null); return; }
+    renameMutation.mutate({ id: renamingLayerId, name: renameValue.trim() });
+  };
 
   // ── Collapsed view — narrow icon strip ───────────────────────────────────────
   if (!panelOpen) {
@@ -204,10 +222,26 @@ export default function LayerPanel({
 
                 <div className="w-3 h-3 rounded-sm flex-shrink-0" style={{ backgroundColor: layer.color }} />
 
-                <div className="flex-1 min-w-0">
-                  <p className={cn('text-xs font-semibold truncate', isActive ? 'text-brand-700' : 'text-slate-700')}>
-                    {layer.name}
-                  </p>
+                <div className="flex-1 min-w-0" onDoubleClick={(e) => { e.stopPropagation(); setRenamingLayerId(layer.id); setRenameValue(layer.name); setTimeout(() => renameInputRef.current?.focus(), 50); }}>
+                  {renamingLayerId === layer.id ? (
+                    <div className="flex items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        ref={renameInputRef}
+                        value={renameValue}
+                        maxLength={40}
+                        onChange={(e) => setRenameValue(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') commitRename(); if (e.key === 'Escape') setRenamingLayerId(null); }}
+                        onBlur={commitRename}
+                        className="flex-1 text-xs font-semibold border border-brand-400 rounded px-1 py-0.5 focus:outline-none bg-white min-w-0"
+                      />
+                      <button onMouseDown={commitRename} className="p-0.5 text-emerald-600"><Check className="w-3 h-3" /></button>
+                      <button onMouseDown={() => setRenamingLayerId(null)} className="p-0.5 text-slate-400"><X className="w-3 h-3" /></button>
+                    </div>
+                  ) : (
+                    <p className={cn('text-xs font-semibold truncate', isActive ? 'text-brand-700' : 'text-slate-700')} title="Double-click to rename">
+                      {layer.name}
+                    </p>
+                  )}
                   <div className="flex items-center gap-1.5 mt-0.5">
                     <span className={cn('text-[9px] font-semibold border rounded px-1 py-px', TYPE_CHIP[layer.type] || 'bg-slate-50 text-slate-500 border-slate-200')}>
                       {layer.type}
@@ -236,18 +270,26 @@ export default function LayerPanel({
 
               {!isCollapsed && layerShapes.length > 0 && (
                 <div className="pl-8 pb-1 border-l-2 border-transparent ml-2">
-                  {layerShapes.map((shape, idx) => (
-                    <div key={shape.id}
-                      className="flex items-center gap-1.5 px-2 py-1 rounded-md text-slate-500 hover:text-slate-700 hover:bg-slate-50 cursor-pointer transition-colors">
-                      <span className="flex-shrink-0 text-slate-400">{shapeIcon(shape.type)}</span>
-                      <span className="flex-1 text-[10px] truncate">
-                        {shape.label || `${shape.type.charAt(0) + shape.type.slice(1).toLowerCase()} ${idx + 1}`}
-                      </span>
-                      <span className="text-[9px] text-slate-400 font-mono">
-                        {getMeasurement(shape, layer, scale, unit)}
-                      </span>
-                    </div>
-                  ))}
+                  {layerShapes.map((shape, idx) => {
+                    const shapePage = (shape as { page?: number }).page ?? 1;
+                    return (
+                      <div key={shape.id}
+                        onClick={() => onNavigateToPage(shapePage)}
+                        title={`Page ${shapePage} — click to navigate`}
+                        className="flex items-center gap-1.5 px-2 py-1 rounded-md text-slate-500 hover:text-slate-700 hover:bg-slate-50 cursor-pointer transition-colors">
+                        <span className="flex-shrink-0 text-slate-400">{shapeIcon(shape.type)}</span>
+                        <span className="flex-1 text-[10px] truncate">
+                          {shape.label || `${shape.type.charAt(0) + shape.type.slice(1).toLowerCase()} ${idx + 1}`}
+                        </span>
+                        <span className="text-[9px] text-slate-400 font-mono flex-shrink-0">
+                          {getMeasurement(shape, layer, scale, unit)}
+                        </span>
+                        <span className="text-[9px] font-bold bg-slate-100 text-slate-500 rounded px-1 flex-shrink-0">
+                          p.{shapePage}
+                        </span>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>

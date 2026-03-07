@@ -47,7 +47,9 @@ export default function TakeoffPage() {
   const [activeLayerId, setActiveLayerId] = useState<string | null>(null);
   const [layers,        setLayers]        = useState<Layer[]>([]);
   const [shapes,        setShapes]        = useState<CanvasShape[]>([]);
-  const [selectedShapeId, setSelectedShapeId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  // Derived: single-selection ID (null when 0 or multiple selected)
+  const selectedShapeId = selectedIds.length === 1 ? selectedIds[0] : null;
 
   // History (refs — no stale closure issue)
   const historyRef      = useRef<CanvasShape[][]>([[]]);
@@ -76,7 +78,7 @@ export default function TakeoffPage() {
   }, [colorPickerOpen]);
 
   // Close picker when selection changes
-  useEffect(() => { setColorPickerOpen(false); }, [selectedShapeId]);
+  useEffect(() => { setColorPickerOpen(false); }, [selectedIds]);
 
   const { data: document, isLoading } = useQuery<Document>({
     queryKey: ['document', documentId],
@@ -142,7 +144,7 @@ export default function TakeoffPage() {
     if (idx <= 0) return;
     const ni = idx - 1;
     historyIndexRef.current = ni;
-    setShapes(historyRef.current[ni]); setSelectedShapeId(null);
+    setShapes(historyRef.current[ni]); setSelectedIds([]);
     setHistoryState({ index: ni, length: historyRef.current.length });
   }, []);
 
@@ -151,7 +153,7 @@ export default function TakeoffPage() {
     if (idx >= historyRef.current.length - 1) return;
     const ni = idx + 1;
     historyIndexRef.current = ni;
-    setShapes(historyRef.current[ni]); setSelectedShapeId(null);
+    setShapes(historyRef.current[ni]); setSelectedIds([]);
     setHistoryState({ index: ni, length: historyRef.current.length });
   }, []);
 
@@ -163,7 +165,7 @@ export default function TakeoffPage() {
 
   const deleteShape = useCallback((id: string) => {
     pushHistory(historyRef.current[historyIndexRef.current].filter((s) => s.id !== id));
-    setSelectedShapeId((p) => p === id ? null : p);
+    setSelectedIds((p) => p.filter(x => x !== id));
   }, [pushHistory]);
 
   const renameShape = useCallback((id: string, label: string) =>
@@ -172,7 +174,27 @@ export default function TakeoffPage() {
   const colorShape = useCallback((id: string, color: string) =>
     pushHistory(historyRef.current[historyIndexRef.current].map((s) => s.id === id ? { ...s, color } : s)), [pushHistory]);
 
-  const deleteSelected = useCallback(() => { if (selectedShapeId) deleteShape(selectedShapeId); }, [selectedShapeId, deleteShape]);
+  // Applies a color to ALL currently selected shapes in one history push
+  const colorSelectedShapes = useCallback((color: string) =>
+    pushHistory(historyRef.current[historyIndexRef.current].map((s) =>
+      selectedIds.includes(s.id) ? { ...s, color } : s)), [pushHistory, selectedIds]);
+
+  const deleteSelected = useCallback(() => {
+    if (!selectedIds.length) return;
+    pushHistory(historyRef.current[historyIndexRef.current].filter((s) => !selectedIds.includes(s.id)));
+    setSelectedIds([]);
+  }, [selectedIds, pushHistory]);
+
+  const handleSelectShape = useCallback((id: string | null, additive?: boolean) => {
+    if (!id) { setSelectedIds([]); return; }
+    if (additive) {
+      setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+    } else {
+      setSelectedIds([id]);
+    }
+  }, []);
+
+  const handleSelectMany = useCallback((ids: string[]) => setSelectedIds(ids), []);
 
   const handleSave = useCallback(() => {
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
@@ -243,6 +265,7 @@ export default function TakeoffPage() {
             activeLayerId={activeLayerId} onSelectLayer={setActiveLayerId}
             onToggleVisibility={toggleLayerVisibility}
             shapes={shapes} scale={scale} unit={unit} documentId={documentId!}
+            onNavigateToPage={setCurrentPage}
           />
 
           {/* Canvas container — all overlays live here */}
@@ -253,8 +276,9 @@ export default function TakeoffPage() {
               activeLayerId={activeLayerId}
               activeLayerColor={activeLayer?.color || '#2563EB'}
               shapes={visibleShapes}
-              selectedShapeId={selectedShapeId}
-              onSelectShape={setSelectedShapeId}
+              selectedShapeIds={selectedIds}
+              onSelectShape={handleSelectShape}
+              onSelectMany={handleSelectMany}
               onAddShape={addShape}
               onUpdateShape={updateShape}
               onDeleteShape={deleteShape}
@@ -271,75 +295,86 @@ export default function TakeoffPage() {
             </div>
 
             {/* ── Undo / Redo / Delete / Shape controls overlay ── */}
-            <div className="absolute top-3 left-3 z-40 flex items-center gap-1 bg-white/90 backdrop-blur-sm border border-slate-200 rounded-xl px-2 py-1.5 shadow-sm">
-              <button onClick={undo} disabled={!canUndo}
-                title="Undo (⌘Z)" className={cn('p-1.5 rounded-lg transition-colors', canUndo ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-100' : 'text-slate-300 cursor-not-allowed')}>
-                <Undo2 className="w-4 h-4" />
-              </button>
-              <button onClick={redo} disabled={!canRedo}
-                title="Redo (⌘⇧Z)" className={cn('p-1.5 rounded-lg transition-colors', canRedo ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-100' : 'text-slate-300 cursor-not-allowed')}>
-                <Redo2 className="w-4 h-4" />
-              </button>
-              <div className="w-px h-5 bg-slate-200 mx-0.5" />
-              <button onClick={deleteSelected} disabled={!selectedShapeId}
-                title="Delete selected (Del)" className={cn('p-1.5 rounded-lg transition-colors', selectedShapeId ? 'text-red-500 hover:text-red-600 hover:bg-red-50' : 'text-slate-300 cursor-not-allowed')}>
-                <Trash2 className="w-4 h-4" />
-              </button>
+            {(() => {
+              const PRESETS = ['#EF4444','#F97316','#EAB308','#22C55E','#14B8A6','#3B82F6','#6366F1','#8B5CF6','#EC4899','#64748B'];
+              const sel = selectedShapeId ? visibleShapes.find(s => s.id === selectedShapeId) : null;
+              const currentColor = sel?.color || '#3B82F6';
+              const hasSelection = selectedIds.length > 0;
+              const multiSelect = selectedIds.length > 1;
+              return (
+                <div className="absolute top-3 left-3 z-40 flex items-center gap-1 bg-white/90 backdrop-blur-sm border border-slate-200 rounded-xl px-2 py-1.5 shadow-sm">
+                  <button onClick={undo} disabled={!canUndo}
+                    title="Undo (⌘Z)" className={cn('p-1.5 rounded-lg transition-colors', canUndo ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-100' : 'text-slate-300 cursor-not-allowed')}>
+                    <Undo2 className="w-4 h-4" />
+                  </button>
+                  <button onClick={redo} disabled={!canRedo}
+                    title="Redo (⌘⇧Z)" className={cn('p-1.5 rounded-lg transition-colors', canRedo ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-100' : 'text-slate-300 cursor-not-allowed')}>
+                    <Redo2 className="w-4 h-4" />
+                  </button>
+                  <div className="w-px h-5 bg-slate-200 mx-0.5" />
+                  <button onClick={deleteSelected} disabled={!hasSelection}
+                    title="Delete selected (Del)" className={cn('p-1.5 rounded-lg transition-colors', hasSelection ? 'text-red-500 hover:text-red-600 hover:bg-red-50' : 'text-slate-300 cursor-not-allowed')}>
+                    <Trash2 className="w-4 h-4" />
+                  </button>
 
-              {/* Per-shape controls — only when something is selected */}
-              {selectedShapeId && (() => {
-                const PRESETS = ['#EF4444','#F97316','#EAB308','#22C55E','#14B8A6','#3B82F6','#6366F1','#8B5CF6','#EC4899','#64748B'];
-                const sel = visibleShapes.find(s => s.id === selectedShapeId);
-                const currentColor = sel?.color || '#3B82F6';
-                return (
-                  <>
-                    <div className="w-px h-5 bg-slate-200 mx-0.5" />
-                    {/* Rename shortcut */}
-                    <button
-                      onClick={() => {
-                        // Trigger the canvas rename modal by setting a custom event
-                        // (simpler: dispatch a keyboard shortcut or just use the canvas click-when-selected behaviour)
-                        window.dispatchEvent(new CustomEvent('pt:rename-selected'));
-                      }}
-                      title="Rename label (or click the selected shape)"
-                      className="p-1.5 rounded-lg text-slate-500 hover:text-brand-600 hover:bg-brand-50 transition-colors"
-                    >
-                      <Pencil className="w-3.5 h-3.5" />
-                    </button>
-                    {/* Color dot → popup */}
-                    <div className="relative" ref={colorPickerRef}>
-                      <button
-                        onClick={() => setColorPickerOpen(o => !o)}
-                        title="Change element color"
-                        className={cn('p-1 rounded-lg transition-colors hover:bg-slate-100', colorPickerOpen && 'bg-slate-100')}
-                      >
-                        <div className="w-5 h-5 rounded-full border-2 border-white shadow" style={{ backgroundColor: currentColor }} />
-                      </button>
-                      {colorPickerOpen && (
-                        <div className="absolute top-full right-0 mt-2 z-50 bg-white border border-slate-200 rounded-2xl p-3 shadow-xl" style={{ width: 168 }}>
-                          <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-2.5 text-center">Element Colour</p>
-                          <div className="grid grid-cols-5 gap-2">
-                            {PRESETS.map(c => (
-                              <button key={c}
-                                onClick={() => { colorShape(selectedShapeId, c); setColorPickerOpen(false); }}
-                                title={c}
-                                className={cn(
-                                  'w-6 h-6 rounded-full transition-all',
-                                  currentColor === c
-                                    ? 'ring-2 ring-offset-2 ring-slate-800'
-                                    : 'hover:ring-2 hover:ring-offset-1 hover:ring-slate-400',
-                                )}
-                                style={{ backgroundColor: c }}
-                              />
-                            ))}
-                          </div>
-                        </div>
+                  {hasSelection && (
+                    <>
+                      <div className="w-px h-5 bg-slate-200 mx-0.5" />
+
+                      {/* Selection count badge */}
+                      {multiSelect && (
+                        <span className="text-[11px] font-bold text-brand-600 bg-brand-50 px-2 py-0.5 rounded-lg">
+                          {selectedIds.length} selected
+                        </span>
                       )}
-                    </div>
-                  </>
-                );
-              })()}
-            </div>
+
+                      {/* Rename (single-select only) */}
+                      {!multiSelect && (
+                        <button
+                          onClick={() => window.dispatchEvent(new CustomEvent('pt:rename-selected'))}
+                          title="Label element (double-click element)"
+                          className="p-1.5 rounded-lg text-slate-500 hover:text-brand-600 hover:bg-brand-50 transition-colors"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+
+                      {/* Color dot → popup (works for single and multi) */}
+                      <div className="relative" ref={colorPickerRef}>
+                        <button
+                          onClick={() => setColorPickerOpen(o => !o)}
+                          title="Change colour"
+                          className={cn('p-1 rounded-lg transition-colors hover:bg-slate-100', colorPickerOpen && 'bg-slate-100')}
+                        >
+                          <div className="w-5 h-5 rounded-full border-2 border-white shadow"
+                            style={{ backgroundColor: multiSelect ? '#6366F1' : currentColor }} />
+                        </button>
+                        {colorPickerOpen && (
+                          <div className="absolute top-full right-0 mt-2 z-50 bg-white border border-slate-200 rounded-2xl p-3 shadow-xl" style={{ width: 168 }}>
+                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-2.5 text-center">
+                              {multiSelect ? `${selectedIds.length} Elements` : 'Element Colour'}
+                            </p>
+                            <div className="grid grid-cols-5 gap-2">
+                              {PRESETS.map(c => (
+                                <button key={c}
+                                  onClick={() => { colorSelectedShapes(c); setColorPickerOpen(false); }}
+                                  title={c}
+                                  className={cn('w-6 h-6 rounded-full transition-all',
+                                    !multiSelect && currentColor === c
+                                      ? 'ring-2 ring-offset-2 ring-slate-800'
+                                      : 'hover:ring-2 hover:ring-offset-1 hover:ring-slate-400')}
+                                  style={{ backgroundColor: c }}
+                                />
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+              );
+            })()}
 
           </div>
         </div>

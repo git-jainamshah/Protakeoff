@@ -98,18 +98,28 @@ export default function EstimatePanel({ layers, shapes, scale, unit, documentNam
         )}
 
         {/* Summary stats */}
-        <div className="grid grid-cols-3 gap-4 mb-6">
-          {[
-            { label: 'Total Layers', value: layers.length.toString() },
-            { label: 'Total Shapes', value: shapes.length.toString() },
-            { label: 'Estimated Total', value: `$${grandTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}` },
-          ].map((s) => (
-            <div key={s.label} className="card p-4">
-              <p className="text-xs text-slate-500 mb-1">{s.label}</p>
-              <p className="text-xl font-bold text-slate-900">{s.value}</p>
+        {(() => {
+          const totalSqFt = rows
+            .filter(r => r.layerType === 'AREA')
+            .reduce((sum, r) => sum + r.rawValue, 0);
+          const sqFtLabel = totalSqFt > 0
+            ? `${totalSqFt.toLocaleString('en-US', { maximumFractionDigits: 1 })} sq.ft`
+            : '0 sq.ft';
+          return (
+            <div className="grid grid-cols-3 gap-4 mb-6">
+              {[
+                { label: 'Total Sq. ft.', value: sqFtLabel },
+                { label: 'Total Shapes', value: shapes.length.toString() },
+                { label: 'Estimated Total', value: `$${grandTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}` },
+              ].map((s) => (
+                <div key={s.label} className="card p-4">
+                  <p className="text-xs text-slate-500 mb-1">{s.label}</p>
+                  <p className="text-xl font-bold text-slate-900">{s.value}</p>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
+          );
+        })()}
 
         {/* Table */}
         <div className="card overflow-hidden">
