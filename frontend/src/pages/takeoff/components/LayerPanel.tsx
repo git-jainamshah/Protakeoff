@@ -45,20 +45,12 @@ function shapeIcon(type: string) {
 
 function getMeasurement(shape: CanvasShape, layer: Layer, scale: number, unit: string) {
   if (layer.type === 'AREA') {
-    if (shape.type === 'RECT') {
-      const d = shape.data as { width: number; height: number };
-      return formatArea(Math.abs(d.width) * Math.abs(d.height), unit, scale);
-    }
-    if (shape.type === 'POLYGON') {
-      const d = shape.data as { points: number[] };
-      return formatArea(calcPolygonArea(d.points), unit, scale);
-    }
+    if (shape.type === 'RECT')    { const d = shape.data as { width: number; height: number }; return formatArea(Math.abs(d.width) * Math.abs(d.height), unit, scale); }
+    if (shape.type === 'POLYGON') { const d = shape.data as { points: number[] };               return formatArea(calcPolygonArea(d.points), unit, scale); }
+    if (shape.type === 'CIRCLE')  { const d = shape.data as { radius: number };                 return formatArea(Math.PI * d.radius * d.radius, unit, scale); }
   }
-  if (layer.type === 'LINEAR' && shape.type === 'LINE') {
-    const d = shape.data as { points: number[] };
-    return formatLength(calcLineLength(d.points), unit, scale);
-  }
-  if (layer.type === 'COUNT') return 'qty';
+  if (layer.type === 'LINEAR' && shape.type === 'LINE') { const d = shape.data as { points: number[] }; return formatLength(calcLineLength(d.points), unit, scale); }
+  if (layer.type === 'COUNT') return '1 qty';
   return '—';
 }
 
@@ -67,8 +59,9 @@ function getLayerTotal(layer: Layer, shapes: CanvasShape[], scale: number, unit:
   if (layer.type === 'COUNT') return `${ls.length} qty`;
   if (layer.type === 'AREA') {
     const total = ls.reduce((sum, s) => {
-      if (s.type === 'RECT') { const d = s.data as { width: number; height: number }; return sum + Math.abs(d.width) * Math.abs(d.height); }
-      if (s.type === 'POLYGON') { const d = s.data as { points: number[] }; return sum + calcPolygonArea(d.points); }
+      if (s.type === 'RECT')    { const d = s.data as { width: number; height: number }; return sum + Math.abs(d.width) * Math.abs(d.height); }
+      if (s.type === 'POLYGON') { const d = s.data as { points: number[] };               return sum + calcPolygonArea(d.points); }
+      if (s.type === 'CIRCLE')  { const d = s.data as { radius: number };                 return sum + Math.PI * d.radius * d.radius; }
       return sum;
     }, 0);
     return formatArea(total, unit, scale);

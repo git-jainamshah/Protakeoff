@@ -52,11 +52,16 @@ export function calcPolygonCentroid(points: number[]): { x: number; y: number } 
   return { x: cx / n, y: cy / n };
 }
 
+// Sums every consecutive segment — handles 2-point lines AND multi-point polylines/freeform paths
 export function calcLineLength(points: number[]): number {
   if (points.length < 4) return 0;
-  const dx = points[2] - points[0];
-  const dy = points[3] - points[1];
-  return Math.sqrt(dx * dx + dy * dy);
+  let total = 0;
+  for (let i = 0; i < points.length - 2; i += 2) {
+    const dx = points[i + 2] - points[i];
+    const dy = points[i + 3] - points[i + 1];
+    total += Math.sqrt(dx * dx + dy * dy);
+  }
+  return total;
 }
 
 export function generateId(): string {

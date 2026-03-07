@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Download, FileSpreadsheet, AlertCircle, Calculator } from 'lucide-react';
 import type { Layer, CanvasShape } from '@/types';
-import { calcPolygonArea, calcLineLength, formatArea, formatLength } from '@/lib/utils';
+import { calcPolygonArea, calcLineLength } from '@/lib/utils';
 import { Button } from '@/components/ui/Button';
 
 interface Props {
@@ -23,13 +23,23 @@ interface EstimateRow {
   total: number;
 }
 
-function getRawValue(shapes: CanvasShape[], layer: Layer, scale: number) {
-  return shapes.filter((s) => s.layerId === layer.id).reduce((sum, s) => {
+// Returns the measurement value already converted to real units:
+//   AREA    → sq [unit]   (pixels² ÷ scale²)
+//   LINEAR  → [unit]      (pixels  ÷ scale)
+//   COUNT   → item count  (integer, no scaling needed)
+function getRawValue(shapes: CanvasShape[], layer: Layer, scale: number): number {
+  const ls = shapes.filter((s) => s.layerId === layer.id);
+  if (layer.type === 'COUNT') return ls.length;
+  return ls.reduce((sum, s) => {
     if (layer.type === 'AREA') {
-      if (s.type === 'RECT') { const d = s.data as { width: number; height: number }; return sum + Math.abs(d.width) * Math.abs(d.height) / (scale * scale); }
-      if (s.type === 'POLYGON') { const d = s.data as { points: number[] }; return sum + calcPolygonArea(d.points) / (scale * scale); }
+      if (s.type === 'RECT')    { const d = s.data as { width: number; height: number }; return sum + Math.abs(d.width) * Math.abs(d.height) / (scale * scale); }
+      if (s.type === 'POLYGON') { const d = s.data as { points: number[] };               return sum + calcPolygonArea(d.points) / (scale * scale); }
+      if (s.type === 'CIRCLE')  { const d = s.data as { radius: number };                 return sum + Math.PI * d.radius * d.radius / (scale * scale); }
     }
-    if (layer.type === 'LINEAR' && s.type === 'LINE') { const d = s.data as { points: number[] }; return sum + calcLineLength(d.points) / scale; }
+    if (layer.type === 'LINEAR' && s.type === 'LINE') {
+      const d = s.data as { points: number[] };
+      return sum + calcLineLength(d.points) / scale;
+    }
     return sum;
   }, 0);
 }
@@ -41,11 +51,12 @@ export default function EstimatePanel({ layers, shapes, scale, unit, documentNam
     const ls   = shapes.filter((s) => s.layerId === layer.id);
     const raw  = getRawValue(shapes, layer, scale);
     const uPrice = unitPrices[layer.id] || 0;
+    // raw is already in real units (sq unit / unit / count), so multiply directly
     const total  = raw * uPrice;
     let measure = '—';
-    if (layer.type === 'COUNT')  measure = `${ls.length} qty`;
-    else if (layer.type === 'AREA')   measure = formatArea(raw * scale * scale, unit, scale);
-    else if (layer.type === 'LINEAR') measure = formatLength(raw * scale, unit, scale);
+    if (layer.type === 'COUNT')  measure = `${raw} qty`;
+    else if (layer.type === 'AREA')   measure = `${raw.toFixed(2)} sq ${unit}`;
+    else if (layer.type === 'LINEAR') measure = `${raw.toFixed(2)} ${unit}`;
     return { layerName: layer.name, layerType: layer.type, color: layer.color, count: ls.length, totalMeasurement: measure, rawValue: raw, unitPrice: uPrice, total };
   });
 
@@ -99,16 +110,16 @@ export default function EstimatePanel({ layers, shapes, scale, unit, documentNam
 
         {/* Summary stats */}
         {(() => {
-          const totalSqFt = rows
+          const totalArea = rows
             .filter(r => r.layerType === 'AREA')
             .reduce((sum, r) => sum + r.rawValue, 0);
-          const sqFtLabel = totalSqFt > 0
-            ? `${totalSqFt.toLocaleString('en-US', { maximumFractionDigits: 1 })} sq.ft`
-            : '0 sq.ft';
+          const areaLabel = totalArea > 0
+            ? `${totalArea.toLocaleString('en-US', { maximumFractionDigits: 2 })} sq ${unit}`
+            : `0 sq ${unit}`;
           return (
             <div className="grid grid-cols-3 gap-4 mb-6">
               {[
-                { label: 'Total Sq. ft.', value: sqFtLabel },
+                { label: `Total Area (sq ${unit})`, value: areaLabel },
                 { label: 'Total Shapes', value: shapes.length.toString() },
                 { label: 'Estimated Total', value: `$${grandTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}` },
               ].map((s) => (
