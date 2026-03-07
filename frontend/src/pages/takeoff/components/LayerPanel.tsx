@@ -43,37 +43,32 @@ function shapeIcon(type: string) {
   return <Circle className="w-3 h-3" />;
 }
 
-function getMeasurement(shape: CanvasShape, layer: Layer, scale: number, unit: string) {
-  if (layer.type === 'AREA') {
-    if (shape.type === 'RECT')    { const d = shape.data as { width: number; height: number }; return formatArea(Math.abs(d.width) * Math.abs(d.height), unit, scale); }
-    if (shape.type === 'POLYGON') { const d = shape.data as { points: number[] };               return formatArea(calcPolygonArea(d.points), unit, scale); }
-    if (shape.type === 'CIRCLE')  { const d = shape.data as { radius: number };                 return formatArea(Math.PI * d.radius * d.radius, unit, scale); }
-  }
-  if (layer.type === 'LINEAR' && shape.type === 'LINE') { const d = shape.data as { points: number[] }; return formatLength(calcLineLength(d.points), unit, scale); }
-  if (layer.type === 'COUNT') return '1 qty';
+// Shape measurement based on shape geometry — independent of which layer type it's in
+function getMeasurement(shape: CanvasShape, _layer: Layer, scale: number, unit: string) {
+  if (shape.type === 'RECT')    { const d = shape.data as { width: number; height: number }; return formatArea(Math.abs(d.width) * Math.abs(d.height), unit, scale); }
+  if (shape.type === 'POLYGON') { const d = shape.data as { points: number[] };               return formatArea(calcPolygonArea(d.points), unit, scale); }
+  if (shape.type === 'CIRCLE')  { const d = shape.data as { radius: number };                 return formatArea(Math.PI * d.radius * d.radius, unit, scale); }
+  if (shape.type === 'LINE')    { const d = shape.data as { points: number[] };               return formatLength(calcLineLength(d.points), unit, scale); }
   return '—';
 }
 
+// Layer total aggregates all shape geometries regardless of layer type
 function getLayerTotal(layer: Layer, shapes: CanvasShape[], scale: number, unit: string) {
   const ls = shapes.filter((s) => s.layerId === layer.id);
   if (layer.type === 'COUNT') return `${ls.length} qty`;
-  if (layer.type === 'AREA') {
-    const total = ls.reduce((sum, s) => {
-      if (s.type === 'RECT')    { const d = s.data as { width: number; height: number }; return sum + Math.abs(d.width) * Math.abs(d.height); }
-      if (s.type === 'POLYGON') { const d = s.data as { points: number[] };               return sum + calcPolygonArea(d.points); }
-      if (s.type === 'CIRCLE')  { const d = s.data as { radius: number };                 return sum + Math.PI * d.radius * d.radius; }
-      return sum;
-    }, 0);
-    return formatArea(total, unit, scale);
-  }
-  if (layer.type === 'LINEAR') {
-    const total = ls.reduce((sum, s) => {
-      if (s.type === 'LINE') { const d = s.data as { points: number[] }; return sum + calcLineLength(d.points); }
-      return sum;
-    }, 0);
-    return formatLength(total, unit, scale);
-  }
-  return '—';
+
+  let area = 0, length = 0;
+  ls.forEach((s) => {
+    if (s.type === 'RECT')    { const d = s.data as { width: number; height: number }; area   += Math.abs(d.width) * Math.abs(d.height); }
+    if (s.type === 'POLYGON') { const d = s.data as { points: number[] };               area   += calcPolygonArea(d.points); }
+    if (s.type === 'CIRCLE')  { const d = s.data as { radius: number };                 area   += Math.PI * d.radius * d.radius; }
+    if (s.type === 'LINE')    { const d = s.data as { points: number[] };               length += calcLineLength(d.points); }
+  });
+
+  const parts: string[] = [];
+  if (area > 0)   parts.push(formatArea(area, unit, scale));
+  if (length > 0) parts.push(formatLength(length, unit, scale));
+  return parts.length > 0 ? parts.join(' · ') : '—';
 }
 
 export default function LayerPanel({

@@ -23,41 +23,49 @@ interface EstimateRow {
   total: number;
 }
 
-// Returns the measurement value already converted to real units:
-//   AREA    → sq [unit]   (pixels² ÷ scale²)
-//   LINEAR  → [unit]      (pixels  ÷ scale)
-//   COUNT   → item count  (integer, no scaling needed)
-function getRawValue(shapes: CanvasShape[], layer: Layer, scale: number): number {
-  const ls = shapes.filter((s) => s.layerId === layer.id);
-  if (layer.type === 'COUNT') return ls.length;
-  return ls.reduce((sum, s) => {
-    if (layer.type === 'AREA') {
-      if (s.type === 'RECT')    { const d = s.data as { width: number; height: number }; return sum + Math.abs(d.width) * Math.abs(d.height) / (scale * scale); }
-      if (s.type === 'POLYGON') { const d = s.data as { points: number[] };               return sum + calcPolygonArea(d.points) / (scale * scale); }
-      if (s.type === 'CIRCLE')  { const d = s.data as { radius: number };                 return sum + Math.PI * d.radius * d.radius / (scale * scale); }
-    }
-    if (layer.type === 'LINEAR' && s.type === 'LINE') {
-      const d = s.data as { points: number[] };
-      return sum + calcLineLength(d.points) / scale;
-    }
-    return sum;
-  }, 0);
+// Computes total area (sq units) and total length for a set of shapes —
+// based purely on each shape's own geometry, regardless of which layer type they're in.
+function getShapeGeometry(shapes: CanvasShape[], layerId: string, scale: number) {
+  const ls = shapes.filter((s) => s.layerId === layerId);
+  let area = 0, length = 0;
+  ls.forEach((s) => {
+    if (s.type === 'RECT')    { const d = s.data as { width: number; height: number }; area   += Math.abs(d.width) * Math.abs(d.height) / (scale * scale); }
+    if (s.type === 'POLYGON') { const d = s.data as { points: number[] };               area   += calcPolygonArea(d.points) / (scale * scale); }
+    if (s.type === 'CIRCLE')  { const d = s.data as { radius: number };                 area   += Math.PI * d.radius * d.radius / (scale * scale); }
+    if (s.type === 'LINE')    { const d = s.data as { points: number[] };               length += calcLineLength(d.points) / scale; }
+  });
+  return { area, length, count: ls.length };
 }
 
 export default function EstimatePanel({ layers, shapes, scale, unit, documentName }: Props) {
   const [unitPrices, setUnitPrices] = useState<Record<string, number>>({});
 
   const rows: EstimateRow[] = layers.map((layer) => {
-    const ls   = shapes.filter((s) => s.layerId === layer.id);
-    const raw  = getRawValue(shapes, layer, scale);
+    const ls     = shapes.filter((s) => s.layerId === layer.id);
+    const geo    = getShapeGeometry(shapes, layer.id, scale);
     const uPrice = unitPrices[layer.id] || 0;
-    // raw is already in real units (sq unit / unit / count), so multiply directly
-    const total  = raw * uPrice;
-    let measure = '—';
-    if (layer.type === 'COUNT')  measure = `${raw} qty`;
-    else if (layer.type === 'AREA')   measure = `${raw.toFixed(2)} sq ${unit}`;
-    else if (layer.type === 'LINEAR') measure = `${raw.toFixed(2)} ${unit}`;
-    return { layerName: layer.name, layerType: layer.type, color: layer.color, count: ls.length, totalMeasurement: measure, rawValue: raw, unitPrice: uPrice, total };
+
+    // Pick the primary rawValue for cost calculation:
+    //  COUNT  → number of items
+    //  layers with area shapes first, then fall back to length if no areas
+    //  layers with only line shapes → use length
+    let rawValue = 0;
+    let measure  = '—';
+    const parts: string[] = [];
+
+    if (layer.type === 'COUNT') {
+      rawValue = geo.count;
+      measure  = `${geo.count} qty`;
+    } else {
+      if (geo.area > 0)   parts.push(`${geo.area.toFixed(2)} sq ${unit}`);
+      if (geo.length > 0) parts.push(`${geo.length.toFixed(2)} ${unit}`);
+      measure = parts.length > 0 ? parts.join('  +  ') : `0 sq ${unit}`;
+      // Use area as the primary pricing basis (most common in construction estimates)
+      rawValue = geo.area > 0 ? geo.area : geo.length;
+    }
+
+    const total = rawValue * uPrice;
+    return { layerName: layer.name, layerType: layer.type, color: layer.color, count: ls.length, totalMeasurement: measure, rawValue, unitPrice: uPrice, total };
   });
 
   const grandTotal = rows.reduce((s, r) => s + r.total, 0);
@@ -110,9 +118,8 @@ export default function EstimatePanel({ layers, shapes, scale, unit, documentNam
 
         {/* Summary stats */}
         {(() => {
-          const totalArea = rows
-            .filter(r => r.layerType === 'AREA')
-            .reduce((sum, r) => sum + r.rawValue, 0);
+          // Sum all area-type measurements across every layer (geometry-based, not layer-type filtered)
+          const totalArea = layers.reduce((sum, l) => sum + getShapeGeometry(shapes, l.id, scale).area, 0);
           const areaLabel = totalArea > 0
             ? `${totalArea.toLocaleString('en-US', { maximumFractionDigits: 2 })} sq ${unit}`
             : `0 sq ${unit}`;
