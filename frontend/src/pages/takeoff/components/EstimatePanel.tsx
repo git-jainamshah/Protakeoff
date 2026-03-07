@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Download, FileSpreadsheet, AlertCircle, Calculator } from 'lucide-react';
 import type { Layer, CanvasShape } from '@/types';
 import { calcPolygonArea, calcLineLength } from '@/lib/utils';
@@ -10,6 +10,7 @@ interface Props {
   scale: number;
   unit: string;
   documentName: string;
+  documentId: string;
 }
 
 interface EstimateRow {
@@ -37,8 +38,20 @@ function getShapeGeometry(shapes: CanvasShape[], layerId: string, scale: number)
   return { area, length, count: ls.length };
 }
 
-export default function EstimatePanel({ layers, shapes, scale, unit, documentName }: Props) {
-  const [unitPrices, setUnitPrices] = useState<Record<string, number>>({});
+const LS_KEY = (docId: string) => `pt_unitprices_${docId}`;
+
+export default function EstimatePanel({ layers, shapes, scale, unit, documentName, documentId }: Props) {
+  const [unitPrices, setUnitPrices] = useState<Record<string, number>>(() => {
+    try {
+      const raw = localStorage.getItem(LS_KEY(documentId));
+      return raw ? JSON.parse(raw) : {};
+    } catch { return {}; }
+  });
+
+  // Persist whenever prices change
+  useEffect(() => {
+    try { localStorage.setItem(LS_KEY(documentId), JSON.stringify(unitPrices)); } catch { /* storage full */ }
+  }, [unitPrices, documentId]);
 
   const rows: EstimateRow[] = layers.map((layer) => {
     const ls     = shapes.filter((s) => s.layerId === layer.id);

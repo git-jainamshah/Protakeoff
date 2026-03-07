@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { documentsApi, shapesApi } from '@/lib/api';
 import type { Layer, CanvasShape, ToolType, Document } from '@/types';
 import { generateId, calcPolygonArea, calcLineLength, formatArea, formatLength } from '@/lib/utils';
@@ -39,6 +39,7 @@ function computeMetrics(shapes: CanvasShape[], layers: Layer[], scale: number, u
 export default function TakeoffPage() {
   const { projectId, documentId } = useParams<{ projectId: string; documentId: string }>();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const [activeTab,     setActiveTab]     = useState<ActiveTab>('takeoff');
   const [activeTool,    setActiveTool]    = useState<ToolType>('pan');
@@ -118,6 +119,28 @@ export default function TakeoffPage() {
     setShapes(all);
     historyRef.current = [all]; historyIndexRef.current = 0; setHistoryState({ index: 0, length: 1 });
   }, [document]);
+
+  // Persists scale/unit changes to the database immediately
+  const saveDocSettingsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const saveDocSettings = useCallback((newScale: number, newUnit: string) => {
+    if (!documentId) return;
+    if (saveDocSettingsTimer.current) clearTimeout(saveDocSettingsTimer.current);
+    saveDocSettingsTimer.current = setTimeout(() => {
+      documentsApi.update(documentId, { scale: newScale, unit: newUnit })
+        .then(() => queryClient.invalidateQueries({ queryKey: ['document', documentId] }))
+        .catch(() => {}); // silent — scale/unit are already updated in local state
+    }, 600);
+  }, [documentId, queryClient]);
+
+  const handleScaleChange = useCallback((newScale: number) => {
+    setScale(newScale);
+    saveDocSettings(newScale, unit);
+  }, [unit, saveDocSettings]);
+
+  const handleUnitChange = useCallback((newUnit: string) => {
+    setUnit(newUnit);
+    saveDocSettings(scale, newUnit);
+  }, [scale, saveDocSettings]);
 
   const triggerAutoSave = useCallback((latest: CanvasShape[]) => {
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
@@ -249,7 +272,7 @@ export default function TakeoffPage() {
         activeTab={activeTab} onTabChange={setActiveTab}
         canUndo={canUndo} canRedo={canRedo} onUndo={undo} onRedo={redo}
         onSave={handleSave} isSaving={isSaving}
-        scale={scale} unit={unit} onScaleChange={setScale} onUnitChange={setUnit}
+        scale={scale} unit={unit} onScaleChange={handleScaleChange} onUnitChange={handleUnitChange}
         currentPage={currentPage} totalPages={document.pageCount}
         onPageChange={setCurrentPage}
         onBack={() => navigate(`/projects/${projectId}`)}
@@ -282,7 +305,7 @@ export default function TakeoffPage() {
               onDeleteShape={deleteShape}
               onRenameShape={renameShape}
               onPageChange={setCurrentPage}
-              scale={scale} unit={unit} onScaleChange={setScale}
+              scale={scale} unit={unit} onScaleChange={handleScaleChange}
               currentPage={currentPage}
               metrics={metrics}
             />
@@ -377,7 +400,7 @@ export default function TakeoffPage() {
           </div>
         </div>
       ) : (
-        <EstimatePanel layers={layers} shapes={shapes} scale={scale} unit={unit} documentName={document.name} />
+        <EstimatePanel layers={layers} shapes={shapes} scale={scale} unit={unit} documentName={document.name} documentId={documentId!} />
       )}
     </div>
   );
