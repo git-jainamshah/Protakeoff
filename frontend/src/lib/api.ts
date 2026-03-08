@@ -1,5 +1,6 @@
 import axios from 'axios';
 import toast from 'react-hot-toast';
+import { useAuthStore } from '@/store/authStore';
 
 const api = axios.create({
   baseURL: '/api',
@@ -17,8 +18,7 @@ api.interceptors.response.use(
   (err) => {
     const message = err.response?.data?.error || 'Something went wrong';
     if (err.response?.status === 401) {
-      localStorage.removeItem('pt_token');
-      localStorage.removeItem('pt_user');
+      useAuthStore.getState().logout();
       window.location.href = '/login';
     } else if (err.response?.status !== 404) {
       toast.error(message);
